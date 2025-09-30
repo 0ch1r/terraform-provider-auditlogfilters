@@ -1,0 +1,166 @@
+# Terraform Provider Acceptance Tests with MySQL
+name: Acceptance Tests
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+      - 'examples/**'
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+      - 'examples/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    name: Acceptance Tests with MySQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      mysql:
+        image: percona/percona-server:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ""
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+          MYSQL_DATABASE: mysql
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      MYSQL_ENDPOINT: localhost:3306
+      MYSQL_USERNAME: root
+      MYSQL_PASSWORD: ""
+      MYSQL_DATABASE: mysql
+      MYSQL_TLS: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: '1.5.*'
+          terraform_wrapper: false
+
+      - name: Wait for MySQL to be ready
+        run: |
+          for i in {1..30}; do
+            if mysqladmin ping -h 127.0.0.1 -u root --silent; then
+              echo "MySQL is ready"
+              break
+            fi
+            echo "Waiting for MySQL... ($i/30)"
+            sleep 2
+          done
+
+      - name: Install audit_log_filter component
+        run: |
+          # Download and install the audit log filter component
+          mysql -h 127.0.0.1 -u root << 'SQL'
+          INSTALL COMPONENT 'file://component_audit_log_filter';
+          SELECT component_urn FROM mysql.component WHERE component_urn LIKE '%audit_log_filter%';
+          SQL
+
+      - name: Verify audit log filter tables exist
+        run: |
+          mysql -h 127.0.0.1 -u root -e "SHOW TABLES IN mysql LIKE 'audit_log_%';"
+
+      - name: Run acceptance tests
+        env:
+          TF_ACC: "1"
+        run: go test -v -cover ./internal/provider/ -timeout 25m
+
+      - name: Test basic provider functionality
+        run: |
+          # Create a simple test to verify end-to-end functionality
+          cat > test_basic.tf << 'EOF'
+          terraform {
+            required_providers {
+              auditlogfilter = {
+                source = "0ch1r/auditlogfilter"
+              }
+            }
+          }
+
+          provider "auditlogfilter" {
+            endpoint = "localhost:3306"
+            username = "root"
+            password = ""
+            database = "mysql"
+            tls      = "false"
+          }
+
+          resource "auditlogfilter_filter" "ci_test" {
+            name = "ci_test_filter"
+            definition = jsonencode({
+              filter = {
+                class = {
+                  name = "connection"
+                  event = {
+                    name = ["connect", "disconnect"]
+                  }
+                }
+              }
+            })
+          }
+
+          resource "auditlogfilter_user_assignment" "ci_test" {
+            username    = "testuser"
+            userhost    = "%"
+            filter_name = auditlogfilter_filter.ci_test.name
+          }
+
+          output "test_results" {
+            value = {
+              filter_id   = auditlogfilter_filter.ci_test.filter_id
+              filter_name = auditlogfilter_filter.ci_test.name
+              assignment_id = auditlogfilter_user_assignment.ci_test.id
+            }
+          }
+          EOF
+
+          # Build the provider
+          go build -o terraform-provider-auditlogfilter
+
+          # Create dev overrides
+          mkdir -p ~/.terraform.d
+          cat > ~/.terraformrc << 'EOF'
+          provider_installation {
+            dev_overrides {
+              "0ch1r/auditlogfilter" = "/home/runner/work/terraform-provider-auditlogfilter/terraform-provider-auditlogfilter"
+            }
+            direct {}
+          }
+          EOF
+
+          # Test the provider
+          terraform init
+          terraform plan
+          terraform apply -auto-approve
+          terraform destroy -auto-approve
+
+      - name: Cleanup test resources
+        if: always()
+        run: |
+          mysql -h 127.0.0.1 -u root << 'SQL' || true
+          SELECT audit_log_filter_remove_filter('ci_test_filter');
+          SELECT audit_log_filter_remove_user('testuser@%');
+          SQL

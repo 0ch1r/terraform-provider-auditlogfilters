@@ -1,0 +1,168 @@
+# More info on config here: https://golangci-lint.run/usage/configuration/
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - typecheck
+    - unused
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - containedctx
+    - contextcheck
+    - cyclop
+    - dupl
+    - durationcheck
+    - errname
+    - errorlint
+    - execinquery
+    - exhaustive
+    - exportloopref
+    - forbidigo
+    - funlen
+    - gochecknoinits
+    - gocognit
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - goimports
+    - gomnd
+    - gomoddirectives
+    - gomodguard
+    - goprintffuncname
+    - gosec
+    - grouper
+    - importas
+    - interfacebloat
+    - lll
+    - loggercheck
+    - maintidx
+    - makezero
+    - misspell
+    - nakedret
+    - nestif
+    - nilerr
+    - nilnil
+    - noctx
+    - nolintlint
+    - nonamedreturns
+    - nosprintfhostport
+    - predeclared
+    - promlinter
+    - reassign
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - stylecheck
+    - tenv
+    - testableexamples
+    - tparallel
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wastedassign
+    - whitespace
+
+linters-settings:
+  cyclop:
+    max-complexity: 15
+  dupl:
+    threshold: 120
+  errorlint:
+    # Check whether fmt.Errorf uses the %w verb for formatting errors.
+    errorf: true
+    # Check for plain type assertions and type switches.
+    asserts: true
+    # Check for plain error comparisons.
+    comparison: true
+  funlen:
+    lines: 100
+    statements: 50
+  gocognit:
+    # Minimal code complexity to report
+    min-complexity: 15
+  goconst:
+    min-len: 2
+    min-occurrences: 3
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      - dupImport # https://github.com/go-critic/go-critic/issues/845
+      - ifElseChain
+      - octalLiteral
+      - whyNoLint
+  gocyclo:
+    min-complexity: 15
+  goimports:
+    local-prefixes: github.com/0ch1r/terraform-provider-auditlogfilter
+  gomnd:
+    # don't include the "operation" and "assign"
+    checks:
+      - argument
+      - case
+      - condition
+      - return
+    ignored-numbers:
+      - '0'
+      - '1'
+      - '2'
+      - '3'
+  govet:
+    check-shadowing: true
+    settings:
+      printf:
+        funcs:
+          - (github.com/hashicorp/terraform-plugin-log/tflog).Trace
+          - (github.com/hashicorp/terraform-plugin-log/tflog).Debug
+          - (github.com/hashicorp/terraform-plugin-log/tflog).Info
+          - (github.com/hashicorp/terraform-plugin-log/tflog).Warn
+          - (github.com/hashicorp/terraform-plugin-log/tflog).Error
+  importas:
+    no-unaliased: true
+    alias:
+      - pkg: github.com/hashicorp/terraform-plugin-framework/types/basetypes
+        alias: basetypes
+  lll:
+    line-length: 140
+  misspell:
+    locale: US
+  nolintlint:
+    allow-unused: false # report any unused nolint directives
+    require-explanation: false # don't require an explanation for nolint directives
+    require-specific: false # don't require nolint directives to be specific about which linter is being skipped
+
+issues:
+  # Excluding configuration per-path, per-linter, per-text and per-source
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gomnd
+        - funlen
+    - path: internal/provider/provider.go
+      linters:
+        - funlen # Provider configuration can be long
+    - path: internal/provider/.*_resource\.go
+      linters:
+        - funlen # Resource CRUD methods can be long
+        - gocognit # Resource methods can have complex logic
+        - cyclop # Resource methods can have complex logic
+
+# golangci.com configuration
+# https://github.com/golangci/golangci/wiki/Configuration
+service:
+  golangci-lint-version: 1.54.x # use the fixed version to not introduce new linters unexpectedly

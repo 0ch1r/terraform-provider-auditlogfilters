@@ -1,0 +1,183 @@
+---
+page_title: "Provider: Audit Log Filter"
+description: |-
+  The Audit Log Filter provider manages Percona Server 8.4+ audit log filters and user assignments.
+---
+
+# Audit Log Filter Provider
+
+The Audit Log Filter provider manages [Percona Server](https://www.percona.com/software/mysql-database/percona-server) 8.4+ audit log filters using the `audit_log_filter` component. This provider enables Infrastructure as Code management of MySQL audit log filters and user assignments.
+
+## Features
+
+- **Filter Management**: Create, update, and delete audit log filters with JSON definitions
+- **User Assignments**: Assign specific filters to users or set default assignments
+- **Import Support**: Import existing filters and assignments into Terraform state
+- **Update Handling**: Automatic recreation of filters with user assignment preservation
+- **Validation**: JSON schema validation for filter definitions
+
+## Use Cases
+
+- **Compliance Auditing**: Implement audit logging policies for regulatory compliance
+- **Security Monitoring**: Track specific database activities and user behaviors  
+- **Performance Analysis**: Monitor query patterns and connection activities
+- **User-Specific Auditing**: Apply different audit rules to different users or roles
+- **Infrastructure as Code**: Manage audit configuration through Terraform workflows
+
+## Example Usage
+
+```terraform
+# Configure the provider
+provider "auditlogfilter" {
+  endpoint = "localhost:3306"
+  username = "root"
+  password = var.mysql_password
+  database = "mysql"
+}
+
+# Create an audit log filter for connection events
+resource "auditlogfilter_filter" "connection_audit" {
+  name = "connection_events"
+  definition = jsonencode({
+    filter = {
+      class = {
+        name = "connection"
+        event = {
+          name = ["connect", "disconnect", "change_user"]
+        }
+      }
+    }
+  })
+}
+
+# Assign the filter to a specific user
+resource "auditlogfilter_user_assignment" "admin_audit" {
+  username    = "admin"
+  userhost    = "%"
+  filter_name = auditlogfilter_filter.connection_audit.name
+}
+```
+
+## Requirements
+
+- **Percona Server**: 8.4+ with `audit_log_filter` component enabled
+- **Terraform**: 1.0+ 
+- **Network Access**: Connectivity to the Percona Server instance
+- **Privileges**: MySQL user with permissions to use audit log filter functions
+
+## Component Installation
+
+The `audit_log_filter` component must be installed and enabled on your Percona Server:
+
+```sql
+-- Install the component
+INSTALL COMPONENT 'file://component_audit_log_filter';
+
+-- Verify installation
+SELECT component_urn FROM mysql.component 
+WHERE component_urn LIKE '%audit_log_filter%';
+```
+
+Refer to the [Percona Server Audit Log Filter documentation](https://docs.percona.com/percona-server/8.4/audit-log-filter-overview.html) for detailed installation instructions.
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Environment Variables
+
+The provider supports configuration via environment variables:
+
+- `MYSQL_ENDPOINT` - MySQL server endpoint (default: `localhost:3306`)
+- `MYSQL_USERNAME` - MySQL username (default: `root`) 
+- `MYSQL_PASSWORD` - MySQL password
+- `MYSQL_DATABASE` - Database name (default: `mysql`)
+- `MYSQL_TLS` - TLS configuration (default: `preferred`)
+
+## Filter Definition Format
+
+Audit log filters are defined using JSON that follows the MySQL audit log filter syntax. Here are some common patterns:
+
+### Connection Events
+```json
+{
+  "filter": {
+    "class": {
+      "name": "connection",
+      "event": {
+        "name": ["connect", "disconnect", "change_user"]
+      }
+    }
+  }
+}
+```
+
+### User-Specific Filtering
+```json
+{
+  "filter": {
+    "class": {
+      "name": "general",
+      "user": {
+        "name": ["admin", "root"]
+      }
+    }
+  }
+}
+```
+
+### Table Access Events
+```json
+{
+  "filter": {
+    "class": {
+      "name": "table_access",
+      "event": {
+        "name": ["read", "insert", "update", "delete"]
+      },
+      "database": {
+        "name": "sensitive_db"
+      }
+    }
+  }
+}
+```
+
+### Multiple Class Filtering
+```json
+{
+  "filter": {
+    "class": [
+      {
+        "name": "connection"
+      },
+      {
+        "name": "general",
+        "event": {
+          "name": "status",
+          "log": false
+        }
+      }
+    ]
+  }
+}
+```
+
+## Important Notes
+
+### Filter Updates
+⚠️ **Filter Recreation**: MySQL audit log filters cannot be updated in-place. When you modify a filter definition, the provider will:
+1. Remove the existing filter (this also removes user assignments)
+2. Recreate the filter with the new definition
+3. Restore all affected user assignments
+
+This process includes warnings about the temporary impact on active sessions.
+
+### Session Impact
+- Sessions using the filter may experience brief interruption during updates
+- Sessions may need to reconnect to pick up new filter rules
+- The provider automatically restores user assignments to maintain consistency
+
+### User Assignment Patterns
+- Use `username = "%"` for default filter assignment
+- Combine `username` and `userhost` for specific user@host patterns  
+- Use `userhost = "%"` to match any host for a user
+- User assignments are automatically managed during filter updates

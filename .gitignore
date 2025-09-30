@@ -1,0 +1,111 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+terraform-provider-auditlogfilters
+terraform-provider-auditlogfilters_*
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go module download cache
+go/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Terraform files
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+.terraform/
+.terraform.lock.hcl
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform provider development
+terraform-provider-*
+!terraform-provider-*/
+examples/.terraform/
+examples/terraform.tfstate*
+examples/.terraform.lock.hcl
+
+# Testing and coverage
+coverage.txt
+coverage.html
+*.cover
+test-results/
+
+# Documentation generation temporary files
+website/
+docs/tmp/
+
+# Local environment and configuration files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+
+# Build artifacts and releases
+dist/
+build/
+bin/
+
+# GoReleaser
+.goreleaser.yml.bak
+
+# Backup files
+*.bak
+*.backup
+
+# Database files (if any test databases are created)
+*.db
+*.sqlite
+*.sqlite3
+
+# Certificate and key files (if any test certificates are generated)
+*.pem
+*.key
+*.crt
+*.cert
+
+# Local development tools
+tools/
+.tools/
