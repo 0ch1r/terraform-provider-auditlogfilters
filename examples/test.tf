@@ -1,53 +1,93 @@
-# Simple test configuration for local development
 terraform {
   required_providers {
-    auditlogfilter = {
-      source = "0ch1r/auditlogfilter"
+    auditlogfilters = {
+      source  = "0ch1r/auditlogfilters"
+      version = "~> 1.0"
     }
   }
 }
 
-provider "auditlogfilter" {
+# Configure the Audit Log Filter Provider
+provider "auditlogfilters" {
   endpoint = "localhost:3306"
   username = "root"
-  password = ""
+  password = var.mysql_password
   database = "mysql"
   tls      = "preferred"
 }
 
-# Test filter
-resource "auditlogfilter_filter" "test_connection" {
-  name = "test_connection_events"
+# Example MySQL root password variable
+variable "mysql_password" {
+  description = "MySQL root password"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+# Create an audit log filter for connection events
+resource "auditlogfilters_filter" "connection_audit" {
+  name = "connection_events"
   definition = jsonencode({
     filter = {
       class = {
         name = "connection"
         event = {
-          name = ["connect", "disconnect", "change_user", "query_start", "query_end"]
+          name = ["connect", "disconnect", "change_user"]
         }
       }
     }
   })
 }
 
-# Test user assignment
-resource "auditlogfilter_user_assignment" "test_assignment" {
-  username    = "testuser"
-  userhost    = "%"
-  filter_name = auditlogfilter_filter.test_connection.name
+# Create an audit log filter for specific user activities
+resource "auditlogfilters_filter" "admin_audit" {
+  name = "admin_activities"
+  definition = jsonencode({
+    filter = {
+      class = [
+        {
+          name = "connection"
+        },
+        {
+          name = "general"
+          user = {
+            name = ["admin", "root"]
+          }
+        }
+      ]
+    }
+  })
 }
 
-output "test_results" {
+# Assign the connection filter to a specific user
+resource "auditlogfilters_user_assignment" "admin_connection" {
+  username    = "admin"
+  userhost    = "%.example.com"
+  filter_name = auditlogfilters_filter.connection_audit.name
+}
+
+# Set default filter for all users
+resource "auditlogfilters_user_assignment" "default_filter" {
+  username    = "%"
+  userhost    = "%"
+  filter_name = auditlogfilters_filter.admin_audit.name
+}
+
+# Output filter information
+output "connection_filter" {
+  description = "Information about the connection audit filter"
   value = {
-    filter_id   = auditlogfilter_filter.test_connection.filter_id
-    filter_name = auditlogfilter_filter.test_connection.name
-    assignment_id = auditlogfilter_user_assignment.test_assignment.id
+    id          = auditlogfilters_filter.connection_audit.id
+    name        = auditlogfilters_filter.connection_audit.name
+    filter_id   = auditlogfilters_filter.connection_audit.filter_id
   }
 }
 
-# Add another user assignment to test multi-user restoration
-resource "auditlogfilter_user_assignment" "admin_assignment" {
-  username    = "admin"
-  userhost    = "localhost"
-  filter_name = auditlogfilter_filter.test_connection.name
+output "admin_filter" {
+  description = "Information about the admin audit filter"
+  value = {
+    id          = auditlogfilters_filter.admin_audit.id
+    name        = auditlogfilters_filter.admin_audit.name
+    filter_id   = auditlogfilters_filter.admin_audit.filter_id
+  }
 }
