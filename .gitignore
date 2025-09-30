@@ -109,3 +109,8 @@ bin/
 # Local development tools
 tools/
 .tools/
+# Scripts directory - selective ignores
+scripts/.env
+scripts/personal-*
+scripts/tmp/
+scripts/*.local

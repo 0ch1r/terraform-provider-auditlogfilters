@@ -100,3 +100,28 @@ help:
 	@echo "  release-build  - Build release binaries locally"
 	@echo "  release-test   - Test release process without publishing"
 	@echo "  help           - Show this help message"
+
+# Scripts integration
+.PHONY: dev-setup
+dev-setup:
+	@./scripts/dev-setup.sh
+
+.PHONY: test-local
+test-local:
+	@./scripts/test-local.sh
+
+.PHONY: test-with-mysql
+test-with-mysql:
+	@./scripts/test-local.sh --with-mysql --acceptance
+
+.PHONY: release-dry-run
+release-dry-run:
+	@echo "Usage: make release-dry-run VERSION=v1.0.0"
+	@if [ -z "$(VERSION)" ]; then echo "ERROR: VERSION is required"; exit 1; fi
+	@./scripts/release.sh $(VERSION) --dry-run
+
+.PHONY: release
+release:
+	@echo "Usage: make release VERSION=v1.0.0"
+	@if [ -z "$(VERSION)" ]; then echo "ERROR: VERSION is required"; exit 1; fi
+	@./scripts/release.sh $(VERSION)
