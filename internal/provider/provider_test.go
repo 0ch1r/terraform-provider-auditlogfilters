@@ -4,8 +4,6 @@
 package provider
 
 import (
-	"context"
-	"database/sql"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
