@@ -21,7 +21,7 @@ install: build
 dev-override:
 	@echo 'provider_installation {' > ~/.terraformrc
 	@echo '  dev_overrides {' >> ~/.terraformrc
-	@echo '    "localhost/providers/auditlogfilters" = "'$(PWD)'"' >> ~/.terraformrc
+	@echo '    "0ch1r/auditlogfilters" = "'$(PWD)'"' >> ~/.terraformrc
 	@echo '  }' >> ~/.terraformrc
 	@echo '  direct {}' >> ~/.terraformrc
 	@echo '}' >> ~/.terraformrc

@@ -108,12 +108,12 @@ if [[ "$WITH_MYSQL" == true ]]; then
         sleep 1
     done
     echo
-    
+    sleep 5
     # Install audit_log_filter component
     log_info "Installing audit_log_filter component..."
-    docker exec percona-test mysql -u root -p"$MYSQL_PASSWORD" \
-        -e "INSTALL COMPONENT 'file://component_audit_log_filter';"
-    
+    docker exec percona-test \
+        sh -c "mysql -u root -p$MYSQL_PASSWORD < /usr/share/percona-server/audit_log_filter_linux_install.sql;"
+    sleep 5 
     # Verify component is installed
     if docker exec percona-test mysql -u root -p"$MYSQL_PASSWORD" \
         -e "SELECT component_urn FROM mysql.component WHERE component_urn LIKE '%audit_log_filter%';" | grep -q audit_log_filter; then
@@ -145,7 +145,7 @@ if [[ "$RUN_ACCEPTANCE" == true ]]; then
     log_info "Running acceptance tests..."
     
     # Check if MySQL is accessible
-    if ! mysqladmin ping -h "$(echo $MYSQL_ENDPOINT | cut -d: -f1)" \
+    if mysqladmin ping -h "$(echo $MYSQL_ENDPOINT | cut -d: -f1)" \
         -P "$(echo $MYSQL_ENDPOINT | cut -d: -f2)" \
         -u "$MYSQL_USERNAME" -p"$MYSQL_PASSWORD" --silent 2>/dev/null; then
         log_error "Cannot connect to MySQL. Make sure MySQL is running and accessible."
@@ -180,7 +180,7 @@ cat > "$TEST_DIR/test.tf" << TFEOF
 terraform {
   required_providers {
     auditlogfilters = {
-      source = "localhost/providers/auditlogfilters"
+      source = "0ch1r/auditlogfilters"
     }
   }
 }
@@ -194,7 +194,7 @@ provider "auditlogfilters" {
 }
 
 resource "auditlogfilters_filter" "test" {
-  name = "test_filter_\${random_id.test.hex}"
+  name = "test_filter_\${formatdate("YYMMDDhhmmss", timestamp())}"
   definition = jsonencode({
     filter = {
       class = {
@@ -207,9 +207,6 @@ resource "auditlogfilters_filter" "test" {
   })
 }
 
-resource "random_id" "test" {
-  byte_length = 4
-}
 
 output "filter_info" {
   value = {
@@ -223,9 +220,16 @@ TFEOF
 cd "$TEST_DIR"
 
 log_info "Initializing Terraform..."
-if ! terraform init -no-color; then
-    log_error "Terraform init failed"
-    exit 1
+# Remove lock file to avoid dependency conflicts in temporary test directory
+rm -f .terraform.lock.hcl
+# With dev overrides active, terraform init is not necessary and causes errors
+if grep -q "dev_overrides" ~/.terraformrc 2>/dev/null; then
+    log_info "Development overrides detected - skipping terraform init (as recommended by Terraform)"
+else
+    if ! terraform init -no-color; then
+        log_error "Terraform init failed"
+        exit 1
+    fi
 fi
 
 log_info "Planning Terraform configuration..."
@@ -257,7 +261,7 @@ fi
 # Clean up
 cd "$PROJECT_DIR"
 rm -rf "$TEST_DIR"
-rm -f terraform-provider-auditlogfilters
+rm -f terraform-provider-auditlogfilter
 
 # Cleanup Docker container if we started it
 if [[ "$WITH_MYSQL" == true ]]; then

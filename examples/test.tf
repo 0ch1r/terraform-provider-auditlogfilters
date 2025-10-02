@@ -2,7 +2,6 @@ terraform {
   required_providers {
     auditlogfilters = {
       source  = "0ch1r/auditlogfilters"
-      version = "~> 1.0"
     }
   }
 }

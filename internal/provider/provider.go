@@ -38,7 +38,7 @@ type AuditLogFilterProviderModel struct {
 }
 
 func (p *AuditLogFilterProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "auditlogfilter"
+	resp.TypeName = "auditlogfilters"
 	resp.Version = p.version
 }
 
