@@ -25,7 +25,7 @@ Describe how you envision this feature working:
 If applicable, provide an example of how you'd expect to use this feature:
 
 ```hcl
-resource "auditlogfilter_new_resource" "example" {
+resource "auditlogfilters_new_resource" "example" {
   # example configuration
 }
 ```

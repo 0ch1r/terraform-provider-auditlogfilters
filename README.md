@@ -30,8 +30,8 @@ This provider enables Infrastructure as Code management of Percona Server audit 
 ```hcl
 terraform {
   required_providers {
-    auditlogfilter = {
-      source  = "0ch1r/auditlogfilter"
+    auditlogfilters = {
+      source  = "0ch1r/auditlogfilters"
       version = "~> 1.0"
     }
   }
@@ -41,9 +41,9 @@ terraform {
 ### Local Development
 
 ```bash
-git clone https://github.com/0ch1r/terraform-provider-auditlogfilter
-cd terraform-provider-auditlogfilter
-go build -o terraform-provider-auditlogfilter
+git clone https://github.com/0ch1r/terraform-provider-auditlogfilters
+cd terraform-provider-auditlogfilters
+go build -o terraform-provider-auditlogfilters
 ```
 
 ## Quick Start
@@ -51,7 +51,7 @@ go build -o terraform-provider-auditlogfilter
 ### Provider Configuration
 
 ```hcl
-provider "auditlogfilter" {
+provider "auditlogfilters" {
   endpoint = "localhost:3306"
   username = "root"
   password = "your-password"
@@ -75,7 +75,7 @@ The provider supports the following environment variables:
 #### Create an Audit Log Filter
 
 ```hcl
-resource "auditlogfilter_filter" "login_filter" {
+resource "auditlogfilters_filter" "login_filter" {
   name = "login_events"
   definition = jsonencode({
     "filter": {
@@ -93,16 +93,16 @@ resource "auditlogfilter_filter" "login_filter" {
 #### Assign Filter to User
 
 ```hcl
-resource "auditlogfilter_user_assignment" "app_user" {
+resource "auditlogfilters_user_assignment" "app_user" {
   username    = "app_user"
   userhost    = "%"
-  filter_name = auditlogfilter_filter.login_filter.name
+  filter_name = auditlogfilters_filter.login_filter.name
 }
 ```
 
 ## Resource Documentation
 
-### auditlogfilter_filter
+### auditlogfilters_filter
 
 Manages audit log filters using the MySQL `audit_log_filter_set_filter()` function.
 
@@ -119,10 +119,10 @@ Manages audit log filters using the MySQL `audit_log_filter_set_filter()` functi
 #### Import
 
 ```bash
-terraform import auditlogfilter_filter.example filter_name
+terraform import auditlogfilters_filter.example filter_name
 ```
 
-### auditlogfilter_user_assignment
+### auditlogfilters_user_assignment
 
 Manages user assignments to audit log filters using the MySQL `audit_log_filter_set_user()` function.
 
@@ -139,8 +139,8 @@ Manages user assignments to audit log filters using the MySQL `audit_log_filter_
 #### Import
 
 ```bash
-terraform import auditlogfilter_user_assignment.example "username@hostname"
-terraform import auditlogfilter_user_assignment.default "%"
+terraform import auditlogfilters_user_assignment.example "username@hostname"
+terraform import auditlogfilters_user_assignment.default "%"
 ```
 
 ## Filter Definition Examples
@@ -235,7 +235,7 @@ terraform import auditlogfilter_user_assignment.default "%"
 ### Building the Provider
 
 ```bash
-go build -o terraform-provider-auditlogfilter
+go build -o terraform-provider-auditlogfilters
 ```
 
 ### Running Tests
@@ -317,8 +317,8 @@ TF_LOG=DEBUG terraform apply
 
 ```bash
 # Clone and setup
-git clone https://github.com/0ch1r/terraform-provider-auditlogfilter
-cd terraform-provider-auditlogfilter
+git clone https://github.com/0ch1r/terraform-provider-auditlogfilters
+cd terraform-provider-auditlogfilters
 go mod tidy
 
 # Install development dependencies
@@ -368,7 +368,7 @@ This process includes comprehensive warnings:
 ### Example Update Flow
 
 ```hcl
-resource "auditlogfilter_filter" "example" {
+resource "auditlogfilters_filter" "example" {
   name = "connection_events"
   definition = jsonencode({
     filter = {
@@ -428,10 +428,10 @@ The repository includes comprehensive CI/CD workflows:
 Add these badges to your repository README:
 
 ```markdown
-[![Tests](https://github.com/0ch1r/terraform-provider-auditlogfilter/actions/workflows/test.yml/badge.svg)](https://github.com/0ch1r/terraform-provider-auditlogfilter/actions/workflows/test.yml)
-[![Acceptance Tests](https://github.com/0ch1r/terraform-provider-auditlogfilter/actions/workflows/acceptance.yml/badge.svg)](https://github.com/0ch1r/terraform-provider-auditlogfilter/actions/workflows/acceptance.yml)
-[![Validate](https://github.com/0ch1r/terraform-provider-auditlogfilter/actions/workflows/validate.yml/badge.svg)](https://github.com/0ch1r/terraform-provider-auditlogfilter/actions/workflows/validate.yml)
-[![golangci-lint](https://github.com/0ch1r/terraform-provider-auditlogfilter/actions/workflows/test.yml/badge.svg)](https://github.com/0ch1r/terraform-provider-auditlogfilter/actions/workflows/test.yml)
+[![Tests](https://github.com/0ch1r/terraform-provider-auditlogfilters/actions/workflows/test.yml/badge.svg)](https://github.com/0ch1r/terraform-provider-auditlogfilters/actions/workflows/test.yml)
+[![Acceptance Tests](https://github.com/0ch1r/terraform-provider-auditlogfilters/actions/workflows/acceptance.yml/badge.svg)](https://github.com/0ch1r/terraform-provider-auditlogfilters/actions/workflows/acceptance.yml)
+[![Validate](https://github.com/0ch1r/terraform-provider-auditlogfilters/actions/workflows/validate.yml/badge.svg)](https://github.com/0ch1r/terraform-provider-auditlogfilters/actions/workflows/validate.yml)
+[![golangci-lint](https://github.com/0ch1r/terraform-provider-auditlogfilters/actions/workflows/test.yml/badge.svg)](https://github.com/0ch1r/terraform-provider-auditlogfilters/actions/workflows/test.yml)
 ```
 
 ### Local Development

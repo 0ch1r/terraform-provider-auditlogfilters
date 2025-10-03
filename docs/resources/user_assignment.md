@@ -1,12 +1,12 @@
 ---
-page_title: "auditlogfilter_user_assignment Resource - Audit Log Filter"
+page_title: "auditlogfilters_user_assignment Resource - Audit Log Filter"
 subcategory: ""
 description: |-
   Manages user assignments to audit log filters using the audit_log_filter component.
   This resource allows you to assign users to specific audit log filters, enabling targeted auditing for different users. The user can be specified with a username and host pattern, or use '%' for the default filter assignment.
 ---
 
-# auditlogfilter_user_assignment (Resource)
+# auditlogfilters_user_assignment (Resource)
 
 Manages user assignments to audit log filters using the audit_log_filter component.
 
@@ -17,7 +17,7 @@ This resource allows you to assign users to specific audit log filters, enabling
 ### Assign Filter to Specific User
 
 ```terraform
-resource "auditlogfilter_filter" "connection_audit" {
+resource "auditlogfilters_filter" "connection_audit" {
   name = "connection_events"
   definition = jsonencode({
     filter = {
@@ -31,27 +31,27 @@ resource "auditlogfilter_filter" "connection_audit" {
   })
 }
 
-resource "auditlogfilter_user_assignment" "app_user" {
+resource "auditlogfilters_user_assignment" "app_user" {
   username    = "app_user"
   userhost    = "%.example.com"
-  filter_name = auditlogfilter_filter.connection_audit.name
+  filter_name = auditlogfilters_filter.connection_audit.name
 }
 ```
 
 ### Default Filter Assignment
 
 ```terraform
-resource "auditlogfilter_user_assignment" "default_filter" {
+resource "auditlogfilters_user_assignment" "default_filter" {
   username    = "%"
   userhost    = "%"
-  filter_name = auditlogfilter_filter.connection_audit.name
+  filter_name = auditlogfilters_filter.connection_audit.name
 }
 ```
 
 ### Admin User Assignment
 
 ```terraform
-resource "auditlogfilter_user_assignment" "admin_audit" {
+resource "auditlogfilters_user_assignment" "admin_audit" {
   username    = "admin"
   userhost    = "localhost"
   filter_name = "comprehensive_admin_filter"
@@ -61,7 +61,7 @@ resource "auditlogfilter_user_assignment" "admin_audit" {
 ### Multiple User Assignments
 
 ```terraform
-resource "auditlogfilter_filter" "production_audit" {
+resource "auditlogfilters_filter" "production_audit" {
   name = "production_access"
   definition = jsonencode({
     filter = {
@@ -75,12 +75,12 @@ resource "auditlogfilter_filter" "production_audit" {
   })
 }
 
-resource "auditlogfilter_user_assignment" "production_users" {
+resource "auditlogfilters_user_assignment" "production_users" {
   for_each = toset(["app_user1", "app_user2", "data_analyst"])
   
   username    = each.value
   userhost    = "%"
-  filter_name = auditlogfilter_filter.production_audit.name
+  filter_name = auditlogfilters_filter.production_audit.name
 }
 ```
 
@@ -106,13 +106,13 @@ User assignments can be imported using the user specification (username@userhost
 
 ```shell
 # Import specific user assignment
-terraform import auditlogfilter_user_assignment.example "username@hostname"
+terraform import auditlogfilters_user_assignment.example "username@hostname"
 
 # Import default assignment
-terraform import auditlogfilter_user_assignment.default "%"
+terraform import auditlogfilters_user_assignment.default "%"
 
 # Import user with wildcard host
-terraform import auditlogfilter_user_assignment.app_user "app_user@%"
+terraform import auditlogfilters_user_assignment.app_user "app_user@%"
 ```
 
 ## User Specification Format
@@ -169,7 +169,7 @@ The special username `"%"` creates a default assignment:
 
 ```terraform
 # Admin users get comprehensive auditing
-resource "auditlogfilter_user_assignment" "admins" {
+resource "auditlogfilters_user_assignment" "admins" {
   for_each = toset(["admin1", "admin2", "dba"])
   
   username    = each.value
@@ -178,7 +178,7 @@ resource "auditlogfilter_user_assignment" "admins" {
 }
 
 # Application users get basic connection auditing
-resource "auditlogfilter_user_assignment" "app_users" {
+resource "auditlogfilters_user_assignment" "app_users" {
   for_each = toset(["app_prod", "app_staging"])
   
   username    = each.value
@@ -187,7 +187,7 @@ resource "auditlogfilter_user_assignment" "app_users" {
 }
 
 # Default for everyone else
-resource "auditlogfilter_user_assignment" "default" {
+resource "auditlogfilters_user_assignment" "default" {
   username    = "%"
   userhost    = "%"
   filter_name = "minimal_audit"
@@ -198,14 +198,14 @@ resource "auditlogfilter_user_assignment" "default" {
 
 ```terraform
 # Production environment gets full auditing
-resource "auditlogfilter_user_assignment" "production" {
+resource "auditlogfilters_user_assignment" "production" {
   username    = "prod_user"
   userhost    = "%.production.internal"
   filter_name = "full_audit_filter"
 }
 
 # Development environment gets minimal auditing
-resource "auditlogfilter_user_assignment" "development" {
+resource "auditlogfilters_user_assignment" "development" {
   username    = "dev_user"
   userhost    = "%.development.internal"
   filter_name = "dev_audit_filter"
@@ -216,14 +216,14 @@ resource "auditlogfilter_user_assignment" "development" {
 
 ```terraform
 # PCI compliance requires comprehensive auditing for payment app
-resource "auditlogfilter_user_assignment" "pci_compliance" {
+resource "auditlogfilters_user_assignment" "pci_compliance" {
   username    = "payment_app"
   userhost    = "%.secure.internal"
   filter_name = "pci_compliance_audit"
 }
 
 # GDPR compliance for user data access
-resource "auditlogfilter_user_assignment" "gdpr_compliance" {
+resource "auditlogfilters_user_assignment" "gdpr_compliance" {
   username    = "user_data_service"
   userhost    = "%"
   filter_name = "gdpr_audit_filter"

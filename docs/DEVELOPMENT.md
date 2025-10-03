@@ -15,8 +15,8 @@ This guide covers development setup, testing, and contribution guidelines for th
 
 ```bash
 # Clone the repository
-git clone https://github.com/0ch1r/terraform-provider-auditlogfilter
-cd terraform-provider-auditlogfilter
+git clone https://github.com/0ch1r/terraform-provider-auditlogfilters
+cd terraform-provider-auditlogfilters
 
 # Initialize Go modules
 go mod tidy
@@ -29,7 +29,7 @@ go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 ## Project Structure
 
 ```
-terraform-provider-auditlogfilter/
+terraform-provider-auditlogfilters/
 ├── main.go                          # Provider main entry point
 ├── go.mod                           # Go module definition
 ├── Makefile                         # Build automation
@@ -116,14 +116,14 @@ terraform fmt -recursive ./examples/
 
 1. **Build the provider locally:**
    ```bash
-   go build -o terraform-provider-auditlogfilter
+   go build -o terraform-provider-auditlogfilters
    ```
 
 2. **Create a dev override file** (`~/.terraformrc`):
    ```hcl
    provider_installation {
      dev_overrides {
-       "0ch1r/auditlogfilter" = "/path/to/terraform-provider-auditlogfilter"
+       "0ch1r/auditlogfilters" = "/path/to/terraform-provider-auditlogfilters"
      }
      direct {}
    }
@@ -198,13 +198,13 @@ func TestAccAuditLogFilterResource_basic(t *testing.T) {
             {
                 Config: testAccFilterConfig("test_filter"),
                 Check: resource.ComposeAggregateTestCheckFunc(
-                    resource.TestCheckResourceAttr("auditlogfilter_filter.test", "name", "test_filter"),
-                    resource.TestCheckResourceAttrSet("auditlogfilter_filter.test", "filter_id"),
+                    resource.TestCheckResourceAttr("auditlogfilters_filter.test", "name", "test_filter"),
+                    resource.TestCheckResourceAttrSet("auditlogfilters_filter.test", "filter_id"),
                 ),
             },
             // Import
             {
-                ResourceName:      "auditlogfilter_filter.test",
+                ResourceName:      "auditlogfilters_filter.test",
                 ImportState:       true,
                 ImportStateVerify: true,
             },

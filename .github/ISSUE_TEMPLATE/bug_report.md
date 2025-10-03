@@ -31,12 +31,12 @@ Please provide your Terraform configuration files (redact any sensitive informat
 
 ```hcl
 # Provider configuration
-provider "auditlogfilter" {
+provider "auditlogfilters" {
   # your configuration
 }
 
 # Resource configuration
-resource "auditlogfilter_filter" "example" {
+resource "auditlogfilters_filter" "example" {
   # your configuration
 }
 ```

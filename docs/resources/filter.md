@@ -1,12 +1,12 @@
 ---
-page_title: "auditlogfilter_filter Resource - Audit Log Filter"
+page_title: "auditlogfilters_filter Resource - Audit Log Filter"
 subcategory: ""
 description: |-
   Manages a Percona Server audit log filter using the audit_log_filter component.
   This resource allows you to create, update, and delete audit log filters that define which events should be logged. The filter definition must be a valid JSON object that conforms to the MySQL audit log filter syntax.
 ---
 
-# auditlogfilter_filter (Resource)
+# auditlogfilters_filter (Resource)
 
 Manages a Percona Server audit log filter using the audit_log_filter component.
 
@@ -17,7 +17,7 @@ This resource allows you to create, update, and delete audit log filters that de
 ### Basic Connection Auditing
 
 ```terraform
-resource "auditlogfilter_filter" "connection_events" {
+resource "auditlogfilters_filter" "connection_events" {
   name = "connection_audit"
   definition = jsonencode({
     filter = {
@@ -35,7 +35,7 @@ resource "auditlogfilter_filter" "connection_events" {
 ### User-Specific Auditing
 
 ```terraform
-resource "auditlogfilter_filter" "admin_audit" {
+resource "auditlogfilters_filter" "admin_audit" {
   name = "admin_activities"
   definition = jsonencode({
     filter = {
@@ -58,7 +58,7 @@ resource "auditlogfilter_filter" "admin_audit" {
 ### Table Access Auditing
 
 ```terraform
-resource "auditlogfilter_filter" "sensitive_data_access" {
+resource "auditlogfilters_filter" "sensitive_data_access" {
   name = "sensitive_table_audit"
   definition = jsonencode({
     filter = {
@@ -94,7 +94,7 @@ resource "auditlogfilter_filter" "sensitive_data_access" {
 Audit log filters can be imported using their name:
 
 ```shell
-terraform import auditlogfilter_filter.example filter_name
+terraform import auditlogfilters_filter.example filter_name
 ```
 
 ## Filter Definition Syntax

@@ -28,7 +28,7 @@ The Audit Log Filter provider manages [Percona Server](https://www.percona.com/s
 
 ```terraform
 # Configure the provider
-provider "auditlogfilter" {
+provider "auditlogfilters" {
   endpoint = "localhost:3306"
   username = "root"
   password = var.mysql_password
@@ -36,7 +36,7 @@ provider "auditlogfilter" {
 }
 
 # Create an audit log filter for connection events
-resource "auditlogfilter_filter" "connection_audit" {
+resource "auditlogfilters_filter" "connection_audit" {
   name = "connection_events"
   definition = jsonencode({
     filter = {
@@ -51,10 +51,10 @@ resource "auditlogfilter_filter" "connection_audit" {
 }
 
 # Assign the filter to a specific user
-resource "auditlogfilter_user_assignment" "admin_audit" {
+resource "auditlogfilters_user_assignment" "admin_audit" {
   username    = "admin"
   userhost    = "%"
-  filter_name = auditlogfilter_filter.connection_audit.name
+  filter_name = auditlogfilters_filter.connection_audit.name
 }
 ```
 

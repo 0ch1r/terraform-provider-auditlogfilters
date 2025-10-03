@@ -18,8 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Comprehensive Warnings**: Added detailed warnings about filter recreation impact on active sessions
 - **User Assignment Protection**: Automatically preserve and restore all user assignments during filter updates
 - Initial implementation of Audit Log Filter provider for Percona Server 8.4+
-- `auditlogfilter_filter` resource for managing audit log filters
-- `auditlogfilter_user_assignment` resource for managing user-to-filter assignments
+- `auditlogfilters_filter` resource for managing audit log filters
+- `auditlogfilters_user_assignment` resource for managing user-to-filter assignments
 - Provider configuration with MySQL connection management
 - JSON validation for filter definitions
 - Import support for both resources

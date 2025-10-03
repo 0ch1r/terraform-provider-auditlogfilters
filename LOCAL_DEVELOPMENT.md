@@ -27,7 +27,7 @@ This guide explains how to develop and test the Terraform Provider for Audit Log
    terraform {
      required_providers {
        auditlogfilters = {
-         source = "localhost/providers/auditlogfilters"
+         source = "0ch1r/auditlogfilters"
          version = "1.0.0"
        }
      }
@@ -36,10 +36,18 @@ This guide explains how to develop and test the Terraform Provider for Audit Log
    provider "auditlogfilters" {
      endpoint = "localhost:3306"
      username = "root"
-     password = "your_password"
+     password = var.mysql_password
      database = "mysql"
      tls      = "preferred"
    }
+
+# Example MySQL root password variable
+variable "mysql_password" {
+  description = "MySQL root password"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
    ```
 
 ## Development Workflow
@@ -107,7 +115,7 @@ make tidy
    terraform {
      required_providers {
        auditlogfilters = {
-         source = "localhost/providers/auditlogfilters"
+         source = "0ch1r/auditlogfilters"
        }
      }
    }
@@ -120,14 +128,14 @@ make tidy
      tls      = "false"
    }
 
-   resource "auditlogfilters_filter" "test" {
-     name = "test_filter"
+   resource "auditlogfilters_filter" "connection_audit" {
+     name = "connection_events"
      definition = jsonencode({
        filter = {
          class = {
            name = "connection"
            event = {
-             name = ["connect", "disconnect"]
+             name = ["connect", "disconnect", "change_user"]
            }
          }
        }

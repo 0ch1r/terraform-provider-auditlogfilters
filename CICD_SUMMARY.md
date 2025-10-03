@@ -1,6 +1,6 @@
 # CI/CD Infrastructure Summary
 
-This document provides an overview of the comprehensive CI/CD infrastructure added to the terraform-provider-auditlogfilter project.
+This document provides an overview of the comprehensive CI/CD infrastructure added to the terraform-provider-auditlogfilters project.
 
 ## GitHub Actions Workflows
 
@@ -162,4 +162,4 @@ This document provides an overview of the comprehensive CI/CD infrastructure add
 - **Security Issues**: Dependabot alerts for vulnerabilities
 - **Release Status**: Notifications on successful releases
 
-This comprehensive CI/CD infrastructure ensures high code quality, thorough testing, secure releases, and maintainable development workflows for the terraform-provider-auditlogfilter project.
+This comprehensive CI/CD infrastructure ensures high code quality, thorough testing, secure releases, and maintainable development workflows for the terraform-provider-auditlogfilters project.
