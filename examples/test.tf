@@ -69,18 +69,18 @@ resource "auditlogfilters_filter" "log_disabled" {
 }
 
 # Assign the connection filter to a specific user
-#resource "auditlogfilters_user_assignment" "admin_connection" {
-#  username    = "admin"
-#  userhost    = "%.example.com"
-#  filter_name = auditlogfilters_filter.connection_audit.name
-#}
+resource "auditlogfilters_user_assignment" "admin_connection" {
+  username    = "admin"
+  userhost    = "%.example.com"
+ filter_name = auditlogfilters_filter.connection_audit.name
+}
 
 # Set default filter for all users
-#resource "auditlogfilters_user_assignment" "default_filter" {
-#  username    = "%"
-#  userhost    = "%"
-#  filter_name = auditlogfilters_filter.admin_audit.name
-#}
+resource "auditlogfilters_user_assignment" "default_filter" {
+  username    = "%"
+  userhost    = "%"
+  filter_name = auditlogfilters_filter.admin_audit.name
+}
 
 # Output filter information
 output "connection_filter" {

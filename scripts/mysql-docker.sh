@@ -162,7 +162,7 @@ start_container() {
         -e MYSQL_ROOT_PASSWORD="$password" \
         -e MYSQL_DATABASE="$database" \
         -p "$port:3306" \
-        -d percona/percona-server:8.4.3-3-aarch64)
+        -d percona/percona-server:8.4)
     
     if [ $? -eq 0 ]; then
         log_success "Container started with ID: ${container_id:0:12}"
