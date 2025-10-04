@@ -61,6 +61,8 @@ log_info "Starting local testing for Terraform Provider..."
 if [[ -f "$SCRIPT_DIR/.env" ]]; then
     log_info "Loading environment variables from scripts/.env"
     source "$SCRIPT_DIR/.env"
+    # Export the loaded variables so they are available to child processes
+    export MYSQL_ENDPOINT MYSQL_USERNAME MYSQL_PASSWORD MYSQL_DATABASE MYSQL_TLS TF_ACC TF_LOG TF_LOG_PROVIDER
 else
     log_warning "No scripts/.env file found. Using defaults."
     export MYSQL_ENDPOINT=${MYSQL_ENDPOINT:-"localhost:3306"}
@@ -145,9 +147,9 @@ if [[ "$RUN_ACCEPTANCE" == true ]]; then
     log_info "Running acceptance tests..."
     
     # Check if MySQL is accessible
-    if mysqladmin ping -h "$(echo $MYSQL_ENDPOINT | cut -d: -f1)" \
+    if ! mysqladmin ping -h "$(echo $MYSQL_ENDPOINT | cut -d: -f1)" \
         -P "$(echo $MYSQL_ENDPOINT | cut -d: -f2)" \
-        -u "$MYSQL_USERNAME" -p"$MYSQL_PASSWORD" --silent 2>/dev/null; then
+        -u "$MYSQL_USERNAME" -p"$MYSQL_PASSWORD" --protocol=tcp 2>/dev/null; then
         log_error "Cannot connect to MySQL. Make sure MySQL is running and accessible."
         log_error "Connection details:"
         log_error "  Endpoint: $MYSQL_ENDPOINT"
