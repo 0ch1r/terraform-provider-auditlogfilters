@@ -242,7 +242,7 @@ go build -o terraform-provider-auditlogfilters
 
 ```bash
 # Unit tests
-go test ./...
+make test
 
 # Acceptance tests (requires running MySQL instance)
 make testacc
@@ -438,6 +438,11 @@ Add these badges to your repository README:
 
 Use the provided Makefile for local development:
 
+**To see all available make commands:**
+```bash
+make help
+```
+
 ```bash
 # Build the provider
 make build
@@ -454,11 +459,48 @@ make lint
 # Format code
 make fmt
 
-# Install for local development
-make dev-install
+# Tidy dependencies
+make tidy
+
+# Set up development environment
+make dev-setup
+
+# Run tests with coverage report
+make test-coverage
+
+# Set up dev overrides for local testing
+make dev-override
+
+# Remove dev overrides
+make dev-clean
+
+# Test with local MySQL container
+make test-with-mysql
+
+# Generate documentation
+make docs
+
+# Clean build artifacts
+make clean
 ```
 
 ### Release Process
+
+**Makefile Release Commands:**
+
+```bash
+# Test release process without publishing
+make release-test
+
+# Build release binaries locally
+make release-build
+
+# Create a release (requires VERSION)
+make release VERSION=v1.0.0
+
+# Test release dry run (requires VERSION)
+make release-dry-run VERSION=v1.0.0
+```
 
 1. **Update Version**: Update version numbers in relevant files
 2. **Update Changelog**: Add changes to CHANGELOG.md
