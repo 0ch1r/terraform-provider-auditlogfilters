@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -26,6 +28,7 @@ type AuditLogFilterProvider struct {
 	// provider is built and ran locally, and "test" when running acceptance
 	// testing.
 	version string
+	db      *sql.DB
 }
 
 // AuditLogFilterProviderModel describes the provider data model.
@@ -81,12 +84,21 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 		return
 	}
 
+	// Close any prior connection on reconfigure to avoid leaks.
+	if p.db != nil {
+		_ = p.db.Close()
+		p.db = nil
+	}
+
 	// Configuration values
 	endpoint := os.Getenv("MYSQL_ENDPOINT")
 	username := os.Getenv("MYSQL_USERNAME")
 	password := os.Getenv("MYSQL_PASSWORD")
 	database := os.Getenv("MYSQL_DATABASE")
 	tlsConfig := os.Getenv("MYSQL_TLS")
+	connMaxLifetime := os.Getenv("MYSQL_CONN_MAX_LIFETIME")
+	maxOpenConns := os.Getenv("MYSQL_MAX_OPEN_CONNS")
+	maxIdleConns := os.Getenv("MYSQL_MAX_IDLE_CONNS")
 
 	if !data.Endpoint.IsNull() {
 		endpoint = data.Endpoint.ValueString()
@@ -125,6 +137,45 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 		tlsConfig = "preferred"
 	}
 
+	maxLifetime := 5 * time.Minute
+	if connMaxLifetime != "" {
+		parsed, err := time.ParseDuration(connMaxLifetime)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Invalid MySQL Connection Lifetime",
+				"MYSQL_CONN_MAX_LIFETIME must be a valid duration (e.g. 5m, 30s, 1h): "+err.Error(),
+			)
+			return
+		}
+		maxLifetime = parsed
+	}
+
+	maxOpen := 5
+	if maxOpenConns != "" {
+		parsed, err := strconv.Atoi(maxOpenConns)
+		if err != nil || parsed < 0 {
+			resp.Diagnostics.AddError(
+				"Invalid MySQL Max Open Conns",
+				"MYSQL_MAX_OPEN_CONNS must be a non-negative integer: "+err.Error(),
+			)
+			return
+		}
+		maxOpen = parsed
+	}
+
+	maxIdle := 5
+	if maxIdleConns != "" {
+		parsed, err := strconv.Atoi(maxIdleConns)
+		if err != nil || parsed < 0 {
+			resp.Diagnostics.AddError(
+				"Invalid MySQL Max Idle Conns",
+				"MYSQL_MAX_IDLE_CONNS must be a non-negative integer: "+err.Error(),
+			)
+			return
+		}
+		maxIdle = parsed
+	}
+
 	// Allow empty password for testing
 	// if password == "" {
 	//	resp.Diagnostics.AddAttributeError(
@@ -142,14 +193,15 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 
 	// Create MySQL connection
 	config := mysql.Config{
-		User:                 username,
-		Passwd:               password,
-		Net:                  "tcp",
-		Addr:                 endpoint,
-		DBName:               database,
+		User:              username,
+		Passwd:            password,
+		Net:               "tcp",
+		Addr:              endpoint,
+		DBName:            database,
 		AllowNativePasswords: true,
-		ParseTime:            true,
-		TLSConfig:            tlsConfig,
+		ParseTime:         true,
+		TLSConfig:         tlsConfig,
+		InterpolateParams: true,
 	}
 
 	db, err := sql.Open("mysql", config.FormatDSN())
@@ -163,8 +215,13 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 		return
 	}
 
+	db.SetConnMaxLifetime(maxLifetime)
+	db.SetMaxOpenConns(maxOpen)
+	db.SetMaxIdleConns(maxIdle)
+
 	// Test the connection
-	if err := db.Ping(); err != nil {
+	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
 		resp.Diagnostics.AddError(
 			"Unable to Connect to MySQL",
 			"An unexpected error occurred when connecting to MySQL. "+
@@ -176,8 +233,9 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 
 	// Verify audit_log_filter component is available
 	var componentExists int
-	err = db.QueryRow("SELECT COUNT(*) FROM mysql.component WHERE component_urn = 'file://component_audit_log_filter'").Scan(&componentExists)
+	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM mysql.component WHERE component_urn = 'file://component_audit_log_filter'").Scan(&componentExists)
 	if err != nil || componentExists == 0 {
+		_ = db.Close()
 		resp.Diagnostics.AddError(
 			"Audit Log Filter Component Not Available",
 			"The audit_log_filter component is not installed or enabled on this MySQL server. "+
@@ -187,6 +245,7 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 		return
 	}
 
+	p.db = db
 	resp.DataSourceData = db
 	resp.ResourceData = db
 }

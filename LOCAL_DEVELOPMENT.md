@@ -98,6 +98,9 @@ make tidy
    export MYSQL_PASSWORD="test123"
    export MYSQL_DATABASE="mysql"
    export MYSQL_TLS="false"
+   export MYSQL_CONN_MAX_LIFETIME="5m"
+   export MYSQL_MAX_OPEN_CONNS="5"
+   export MYSQL_MAX_IDLE_CONNS="5"
 
    # Run acceptance tests
    make testacc

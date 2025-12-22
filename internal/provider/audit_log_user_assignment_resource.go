@@ -145,7 +145,7 @@ func (r *AuditLogUserAssignmentResource) Create(ctx context.Context, req resourc
 
 	// Verify the filter exists
 	var filterCount int
-	err := r.db.QueryRow("SELECT COUNT(*) FROM mysql.audit_log_filter WHERE name = ?", filterName).Scan(&filterCount)
+	err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM mysql.audit_log_filter WHERE name = ?", filterName).Scan(&filterCount)
 	if err != nil {
 		resp.Diagnostics.AddError("Database Error", "Failed to check filter existence: "+err.Error())
 		return
@@ -162,7 +162,7 @@ func (r *AuditLogUserAssignmentResource) Create(ctx context.Context, req resourc
 
 	// Check if assignment already exists
 	var existingCount int
-	err = r.db.QueryRow("SELECT COUNT(*) FROM mysql.audit_log_user WHERE username = ? AND userhost = ?", username, userhost).Scan(&existingCount)
+	err = r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM mysql.audit_log_user WHERE username = ? AND userhost = ?", username, userhost).Scan(&existingCount)
 	if err != nil {
 		resp.Diagnostics.AddError("Database Error", "Failed to check existing assignment: "+err.Error())
 		return
@@ -178,9 +178,8 @@ func (r *AuditLogUserAssignmentResource) Create(ctx context.Context, req resourc
 
 	// Create the user assignment using the MySQL function - use direct query due to Go driver issues
 	userSpec := r.buildUserSpec(username, userhost)
-	query := fmt.Sprintf("SELECT audit_log_filter_set_user('%s', '%s')", userSpec, filterName)
 	var result string
-	err = r.db.QueryRow(query).Scan(&result)
+	err = r.db.QueryRowContext(ctx, "SELECT audit_log_filter_set_user(?, ?)", userSpec, filterName).Scan(&result)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to Create User Assignment",
@@ -222,7 +221,7 @@ func (r *AuditLogUserAssignmentResource) Read(ctx context.Context, req resource.
 
 	// Query the user assignment from the database
 	var filterName string
-	err := r.db.QueryRow("SELECT filtername FROM mysql.audit_log_user WHERE username = ? AND userhost = ?", username, userhost).Scan(&filterName)
+	err := r.db.QueryRowContext(ctx, "SELECT filtername FROM mysql.audit_log_user WHERE username = ? AND userhost = ?", username, userhost).Scan(&filterName)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// Assignment no longer exists, remove from state
@@ -235,6 +234,7 @@ func (r *AuditLogUserAssignmentResource) Read(ctx context.Context, req resource.
 
 	// Update the model with current database values
 	data.FilterName = types.StringValue(filterName)
+	data.Userhost = types.StringValue(userhost)
 	data.ID = types.StringValue(fmt.Sprintf("%s@%s", username, userhost))
 
 	// Save updated data into Terraform state
@@ -261,7 +261,7 @@ func (r *AuditLogUserAssignmentResource) Update(ctx context.Context, req resourc
 
 	// Verify the new filter exists
 	var filterCount int
-	err := r.db.QueryRow("SELECT COUNT(*) FROM mysql.audit_log_filter WHERE name = ?", filterName).Scan(&filterCount)
+	err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM mysql.audit_log_filter WHERE name = ?", filterName).Scan(&filterCount)
 	if err != nil {
 		resp.Diagnostics.AddError("Database Error", "Failed to check filter existence: "+err.Error())
 		return
@@ -278,9 +278,8 @@ func (r *AuditLogUserAssignmentResource) Update(ctx context.Context, req resourc
 
 	// Update the user assignment using the MySQL function - use direct query
 	userSpec := r.buildUserSpec(username, userhost)
-	query := fmt.Sprintf("SELECT audit_log_filter_set_user('%s', '%s')", userSpec, filterName)
 	var result string
-	err = r.db.QueryRow(query).Scan(&result)
+	err = r.db.QueryRowContext(ctx, "SELECT audit_log_filter_set_user(?, ?)", userSpec, filterName).Scan(&result)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to Update User Assignment",
@@ -322,9 +321,8 @@ func (r *AuditLogUserAssignmentResource) Delete(ctx context.Context, req resourc
 
 	// Remove the user assignment using the MySQL function - use direct query
 	userSpec := r.buildUserSpec(username, userhost)
-	query := fmt.Sprintf("SELECT audit_log_filter_remove_user('%s')", userSpec)
 	var result string
-	err := r.db.QueryRow(query).Scan(&result)
+	err := r.db.QueryRowContext(ctx, "SELECT audit_log_filter_remove_user(?)", userSpec).Scan(&result)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to Delete User Assignment",
@@ -349,7 +347,7 @@ func (r *AuditLogUserAssignmentResource) ImportState(ctx context.Context, req re
 
 	// Validate that the assignment exists
 	var filterName string
-	err := r.db.QueryRow("SELECT filtername FROM mysql.audit_log_user WHERE username = ? AND userhost = ?", username, userhost).Scan(&filterName)
+	err := r.db.QueryRowContext(ctx, "SELECT filtername FROM mysql.audit_log_user WHERE username = ? AND userhost = ?", username, userhost).Scan(&filterName)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			resp.Diagnostics.AddError(
@@ -366,7 +364,12 @@ func (r *AuditLogUserAssignmentResource) ImportState(ctx context.Context, req re
 	data := AuditLogUserAssignmentResourceModel{
 		ID:         types.StringValue(userSpec),
 		Username:   types.StringValue(username),
-		Userhost:   types.StringValue(userhost),
+		Userhost:   types.StringValue(func() string {
+			if userhost == "" {
+				return "%"
+			}
+			return userhost
+		}()),
 		FilterName: types.StringValue(filterName),
 	}
 

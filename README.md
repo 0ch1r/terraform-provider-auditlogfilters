@@ -69,6 +69,9 @@ The provider supports the following environment variables:
 - `MYSQL_PASSWORD` - MySQL password
 - `MYSQL_DATABASE` - Database name (default: "mysql")
 - `MYSQL_TLS` - TLS configuration
+- `MYSQL_CONN_MAX_LIFETIME` - Maximum connection lifetime (default: "5m")
+- `MYSQL_MAX_OPEN_CONNS` - Maximum open connections (default: "5")
+- `MYSQL_MAX_IDLE_CONNS` - Maximum idle connections (default: "5")
 
 ### Basic Usage
 

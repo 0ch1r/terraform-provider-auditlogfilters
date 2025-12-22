@@ -25,6 +25,18 @@ func NewAuditLogFilterResource() resource.Resource {
 	return &AuditLogFilterResource{}
 }
 
+func normalizeJSON(input string) (string, error) {
+	var v interface{}
+	if err := json.Unmarshal([]byte(input), &v); err != nil {
+		return "", err
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
 // AuditLogFilterResource defines the resource implementation.
 type AuditLogFilterResource struct {
 	db *sql.DB
@@ -118,9 +130,19 @@ func (r *AuditLogFilterResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
+	normalizedDefinition, err := normalizeJSON(data.Definition.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("definition"),
+			"Invalid JSON Definition",
+			"The filter definition must be valid JSON: "+err.Error(),
+		)
+		return
+	}
+
 	// Check if filter name already exists
 	var existingCount int
-	err := r.db.QueryRow("SELECT COUNT(*) FROM mysql.audit_log_filter WHERE name = ?", data.Name.ValueString()).Scan(&existingCount)
+	err = r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM mysql.audit_log_filter WHERE name = ?", data.Name.ValueString()).Scan(&existingCount)
 	if err != nil {
 		resp.Diagnostics.AddError("Database Error", "Failed to check existing filter: "+err.Error())
 		return
@@ -136,9 +158,8 @@ func (r *AuditLogFilterResource) Create(ctx context.Context, req resource.Create
 	}
 
 	// Create the audit log filter using the MySQL function - use direct query due to Go driver issues with prepared statements
-	query := fmt.Sprintf("SELECT audit_log_filter_set_filter('%s', '%s')", data.Name.ValueString(), data.Definition.ValueString())
 	var result string
-	err = r.db.QueryRow(query).Scan(&result)
+	err = r.db.QueryRowContext(ctx, "SELECT audit_log_filter_set_filter(?, ?)", data.Name.ValueString(), normalizedDefinition).Scan(&result)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to Create Filter",
@@ -157,7 +178,7 @@ func (r *AuditLogFilterResource) Create(ctx context.Context, req resource.Create
 
 	// Retrieve the created filter to get the filter_id
 	var filterID int64
-	err = r.db.QueryRow("SELECT filter_id FROM mysql.audit_log_filter WHERE name = ?", data.Name.ValueString()).Scan(&filterID)
+	err = r.db.QueryRowContext(ctx, "SELECT filter_id FROM mysql.audit_log_filter WHERE name = ?", data.Name.ValueString()).Scan(&filterID)
 	if err != nil {
 		resp.Diagnostics.AddError("Database Error", "Failed to retrieve filter ID: "+err.Error())
 		return
@@ -166,6 +187,7 @@ func (r *AuditLogFilterResource) Create(ctx context.Context, req resource.Create
 	// Set computed values
 	data.ID = data.Name
 	data.FilterID = types.Int64Value(filterID)
+	data.Definition = types.StringValue(normalizedDefinition)
 
 	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -184,7 +206,7 @@ func (r *AuditLogFilterResource) Read(ctx context.Context, req resource.ReadRequ
 	// Query the filter from the database
 	var filterID int64
 	var definition string
-	err := r.db.QueryRow("SELECT filter_id, filter FROM mysql.audit_log_filter WHERE name = ?", data.Name.ValueString()).Scan(&filterID, &definition)
+	err := r.db.QueryRowContext(ctx, "SELECT filter_id, filter FROM mysql.audit_log_filter WHERE name = ?", data.Name.ValueString()).Scan(&filterID, &definition)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// Filter no longer exists, remove from state
@@ -195,9 +217,15 @@ func (r *AuditLogFilterResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
+	normalizedDefinition, err := normalizeJSON(definition)
+	if err != nil {
+		resp.Diagnostics.AddError("Database Error", "Failed to normalize filter definition: "+err.Error())
+		return
+	}
+
 	// Update the model with current database values
 	data.FilterID = types.Int64Value(filterID)
-	data.Definition = types.StringValue(definition)
+	data.Definition = types.StringValue(normalizedDefinition)
 	data.ID = data.Name
 
 	// Save updated data into Terraform state
@@ -225,6 +253,16 @@ func (r *AuditLogFilterResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
+	normalizedDefinition, err := normalizeJSON(data.Definition.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("definition"),
+			"Invalid JSON Definition",
+			"The filter definition must be valid JSON: "+err.Error(),
+		)
+		return
+	}
+
 	// Add warning about the update process
 	resp.Diagnostics.AddWarning(
 		"Filter Update Requires Recreation",
@@ -234,7 +272,18 @@ func (r *AuditLogFilterResource) Update(ctx context.Context, req resource.Update
 	)
 
 	filterName := data.Name.ValueString()
-	newDefinition := data.Definition.ValueString()
+	newDefinition := normalizedDefinition
+
+	// Capture existing definition for rollback if recreation fails
+	var oldDefinition string
+	err = r.db.QueryRowContext(ctx,
+		"SELECT filter FROM mysql.audit_log_filter WHERE name = ?",
+		filterName,
+	).Scan(&oldDefinition)
+	if err != nil {
+		resp.Diagnostics.AddError("Database Error", "Failed to read existing filter definition: "+err.Error())
+		return
+	}
 
 	// Check which users are currently assigned to this filter before removing it
 	type userAssignment struct {
@@ -243,7 +292,7 @@ func (r *AuditLogFilterResource) Update(ctx context.Context, req resource.Update
 	}
 	var assignedUsers []userAssignment
 
-	rows, err := r.db.Query("SELECT username, userhost FROM mysql.audit_log_user WHERE filtername = ?", filterName)
+	rows, err := r.db.QueryContext(ctx, "SELECT username, userhost FROM mysql.audit_log_user WHERE filtername = ?", filterName)
 	if err != nil {
 		resp.Diagnostics.AddError("Database Error", "Failed to check user assignments: "+err.Error())
 		return
@@ -260,9 +309,8 @@ func (r *AuditLogFilterResource) Update(ctx context.Context, req resource.Update
 	}
 
 	// Step 1: Remove the existing filter (this will also remove all user assignments)
-	removeQuery := fmt.Sprintf("SELECT audit_log_filter_remove_filter('%s')", filterName)
 	var removeResult string
-	err = r.db.QueryRow(removeQuery).Scan(&removeResult)
+	err = r.db.QueryRowContext(ctx, "SELECT audit_log_filter_remove_filter(?)", filterName).Scan(&removeResult)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to Remove Existing Filter",
@@ -280,23 +328,50 @@ func (r *AuditLogFilterResource) Update(ctx context.Context, req resource.Update
 	}
 
 	// Step 2: Create the filter with the new definition
-	createQuery := fmt.Sprintf("SELECT audit_log_filter_set_filter('%s', '%s')", filterName, newDefinition)
 	var createResult string
-	err = r.db.QueryRow(createQuery).Scan(&createResult)
+	err = r.db.QueryRowContext(ctx, "SELECT audit_log_filter_set_filter(?, ?)", filterName, newDefinition).Scan(&createResult)
 	if err != nil {
+		var rollbackResult string
+		rbErr := r.db.QueryRowContext(ctx,
+			"SELECT audit_log_filter_set_filter(?, ?)",
+			filterName,
+			oldDefinition,
+		).Scan(&rollbackResult)
+		if rbErr != nil || rollbackResult != "OK" {
+			resp.Diagnostics.AddError(
+				"Failed to Recreate Filter",
+				"Could not recreate audit log filter with new definition: "+err.Error()+
+					". Rollback attempt also failed; manual restoration may be required.",
+			)
+			return
+		}
 		resp.Diagnostics.AddError(
 			"Failed to Recreate Filter",
 			"Could not recreate audit log filter with new definition: "+err.Error()+
-				". The original filter has been removed and may need manual restoration.",
+				". The original filter definition was restored.",
 		)
 		return
 	}
 
 	if createResult != "OK" {
+		var rollbackResult string
+		rbErr := r.db.QueryRowContext(ctx,
+			"SELECT audit_log_filter_set_filter(?, ?)",
+			filterName,
+			oldDefinition,
+		).Scan(&rollbackResult)
+		if rbErr != nil || rollbackResult != "OK" {
+			resp.Diagnostics.AddError(
+				"Filter Recreation Failed",
+				"MySQL returned an error when recreating filter: "+createResult+
+					". Rollback attempt also failed; manual restoration may be required.",
+			)
+			return
+		}
 		resp.Diagnostics.AddError(
 			"Filter Recreation Failed",
 			"MySQL returned an error when recreating filter: "+createResult+
-				". The original filter has been removed and may need manual restoration.",
+				". The original filter definition was restored.",
 		)
 		return
 	}
@@ -317,9 +392,8 @@ func (r *AuditLogFilterResource) Update(ctx context.Context, req resource.Update
 				userSpec = fmt.Sprintf("%s@%s", user.username, user.userhost)
 			}
 
-			assignQuery := fmt.Sprintf("SELECT audit_log_filter_set_user('%s', '%s')", userSpec, filterName)
 			var assignResult string
-			err = r.db.QueryRow(assignQuery).Scan(&assignResult)
+			err = r.db.QueryRowContext(ctx, "SELECT audit_log_filter_set_user(?, ?)", userSpec, filterName).Scan(&assignResult)
 			if err != nil {
 				resp.Diagnostics.AddWarning(
 					"Failed to Restore User Assignment",
@@ -341,7 +415,7 @@ func (r *AuditLogFilterResource) Update(ctx context.Context, req resource.Update
 
 	// Step 4: Retrieve the updated filter to get the new filter_id
 	var filterID int64
-	err = r.db.QueryRow("SELECT filter_id FROM mysql.audit_log_filter WHERE name = ?", filterName).Scan(&filterID)
+	err = r.db.QueryRowContext(ctx, "SELECT filter_id FROM mysql.audit_log_filter WHERE name = ?", filterName).Scan(&filterID)
 	if err != nil {
 		resp.Diagnostics.AddError("Database Error", "Failed to retrieve updated filter: "+err.Error())
 		return
@@ -350,6 +424,7 @@ func (r *AuditLogFilterResource) Update(ctx context.Context, req resource.Update
 	// Update computed values
 	data.FilterID = types.Int64Value(filterID)
 	data.ID = data.Name
+	data.Definition = types.StringValue(normalizedDefinition)
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -366,9 +441,8 @@ func (r *AuditLogFilterResource) Delete(ctx context.Context, req resource.Delete
 	}
 
 	// Remove the audit log filter using the MySQL function - use direct query
-	query := fmt.Sprintf("SELECT audit_log_filter_remove_filter('%s')", data.Name.ValueString())
 	var result string
-	err := r.db.QueryRow(query).Scan(&result)
+	err := r.db.QueryRowContext(ctx, "SELECT audit_log_filter_remove_filter(?)", data.Name.ValueString()).Scan(&result)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to Delete Filter",
@@ -393,7 +467,7 @@ func (r *AuditLogFilterResource) ImportState(ctx context.Context, req resource.I
 	// Validate that the filter exists
 	var filterID int64
 	var definition string
-	err := r.db.QueryRow("SELECT filter_id, filter FROM mysql.audit_log_filter WHERE name = ?", filterName).Scan(&filterID, &definition)
+	err := r.db.QueryRowContext(ctx, "SELECT filter_id, filter FROM mysql.audit_log_filter WHERE name = ?", filterName).Scan(&filterID, &definition)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			resp.Diagnostics.AddError(
@@ -406,11 +480,17 @@ func (r *AuditLogFilterResource) ImportState(ctx context.Context, req resource.I
 		return
 	}
 
+	normalizedDefinition, err := normalizeJSON(definition)
+	if err != nil {
+		resp.Diagnostics.AddError("Database Error", "Failed to normalize filter definition: "+err.Error())
+		return
+	}
+
 	// Set the state
 	data := AuditLogFilterResourceModel{
 		ID:         types.StringValue(filterName),
 		Name:       types.StringValue(filterName),
-		Definition: types.StringValue(definition),
+		Definition: types.StringValue(normalizedDefinition),
 		FilterID:   types.Int64Value(filterID),
 	}
 

@@ -4,10 +4,12 @@
 package provider
 
 import (
-	"testing"
-	"os"
+	"database/sql"
 	"fmt"
+	"os"
+	"testing"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -141,7 +143,61 @@ resource "auditlogfilters_user_assignment" "test" {
 `, os.Getenv("MYSQL_ENDPOINT"), os.Getenv("MYSQL_USERNAME"), os.Getenv("MYSQL_PASSWORD"), filterName, username, userhost)
 }
 
+func testAccDB() (*sql.DB, error) {
+	config := mysql.Config{
+		User:              os.Getenv("MYSQL_USERNAME"),
+		Passwd:            os.Getenv("MYSQL_PASSWORD"),
+		Net:               "tcp",
+		Addr:              os.Getenv("MYSQL_ENDPOINT"),
+		DBName:            "mysql",
+		AllowNativePasswords: true,
+		ParseTime:         true,
+		InterpolateParams: true,
+	}
+
+	db, err := sql.Open("mysql", config.FormatDSN())
+	if err != nil {
+		return nil, err
+	}
+
+	if err := db.Ping(); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+
+	return db, nil
+}
+
 func testAccCheckAuditLogUserAssignmentDestroy(s *terraform.State) error {
-	// Add logic to verify the user assignment no longer exists
+	db, err := testAccDB()
+	if err != nil {
+		return fmt.Errorf("failed to open db: %w", err)
+	}
+	defer db.Close()
+
+	for _, rs := range s.RootModule().Resources {
+		if rs.Type != "auditlogfilters_user_assignment" {
+			continue
+		}
+
+		username := rs.Primary.Attributes["username"]
+		userhost := rs.Primary.Attributes["userhost"]
+		if userhost == "" {
+			userhost = "%"
+		}
+
+		var count int
+		err := db.QueryRow(
+			"SELECT COUNT(*) FROM mysql.audit_log_user WHERE username = ? AND userhost = ?",
+			username,
+			userhost,
+		).Scan(&count)
+		if err != nil {
+			return fmt.Errorf("failed to verify destroy for %s@%s: %w", username, userhost, err)
+		}
+		if count != 0 {
+			return fmt.Errorf("user assignment still exists for %s@%s", username, userhost)
+		}
+	}
 	return nil
 }

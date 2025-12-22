@@ -39,7 +39,7 @@ func main() {
 	flag.Parse()
 
 	opts := providerserver.ServeOpts{
-		Address: "registry.terraform.io/0ch1r/auditlogfilter",
+		Address: "registry.terraform.io/0ch1r/auditlogfilters",
 		Debug:   debug,
 	}
 
