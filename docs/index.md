@@ -58,6 +58,21 @@ resource "auditlogfilters_user_assignment" "admin_audit" {
 }
 ```
 
+### SSL Example (Docker)
+
+```terraform
+provider "auditlogfilters" {
+  endpoint        = "localhost:3307"
+  username        = "tfuser"
+  password        = "tfpass"
+  database        = "mysql"
+  tls_ca_file     = "./scripts/.mysql-ssl/ca.pem"
+  tls_cert_file   = "./scripts/.mysql-ssl/client-cert.pem"
+  tls_key_file    = "./scripts/.mysql-ssl/client-key.pem"
+  tls_server_name = "percona-ssl"
+}
+```
+
 ## Requirements
 
 - **Percona Server**: 8.4+ with `audit_log_filter` component enabled
@@ -89,6 +104,11 @@ Refer to the [Percona Server Audit Log Filter documentation](https://docs.percon
 - `endpoint` (String) MySQL server endpoint (host:port). May also be provided via MYSQL_ENDPOINT environment variable.
 - `password` (String, Sensitive) MySQL password. May also be provided via MYSQL_PASSWORD environment variable.
 - `tls` (String) TLS configuration for the MySQL connection. Options: 'true', 'false', 'skip-verify', 'preferred'. Defaults to 'preferred'. May also be provided via MYSQL_TLS environment variable.
+- `tls_ca_file` (String) Path to a PEM-encoded CA certificate file for MySQL TLS. May also be provided via MYSQL_TLS_CA environment variable.
+- `tls_cert_file` (String) Path to a PEM-encoded client certificate file for MySQL TLS. May also be provided via MYSQL_TLS_CERT environment variable.
+- `tls_key_file` (String) Path to a PEM-encoded client key file for MySQL TLS. May also be provided via MYSQL_TLS_KEY environment variable.
+- `tls_server_name` (String) Server name for TLS verification (SNI). May also be provided via MYSQL_TLS_SERVER_NAME environment variable.
+- `tls_skip_verify` (Boolean) Skip TLS certificate verification. May also be provided via MYSQL_TLS_SKIP_VERIFY environment variable.
 - `username` (String) MySQL username. May also be provided via MYSQL_USERNAME environment variable.
 
 ## Environment Variables
@@ -100,6 +120,11 @@ The provider supports configuration via environment variables:
 - `MYSQL_PASSWORD` - MySQL password
 - `MYSQL_DATABASE` - Database name (default: `mysql`)
 - `MYSQL_TLS` - TLS configuration (default: `preferred`)
+- `MYSQL_TLS_CA` - TLS CA certificate file path
+- `MYSQL_TLS_CERT` - TLS client certificate file path
+- `MYSQL_TLS_KEY` - TLS client key file path
+- `MYSQL_TLS_SERVER_NAME` - TLS server name override
+- `MYSQL_TLS_SKIP_VERIFY` - Skip TLS certificate verification
 
 ## Filter Definition Format
 

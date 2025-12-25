@@ -159,6 +159,25 @@ make tidy
    make dev-clean
    ```
 
+### Local Testing with SSL (Docker)
+
+1. **Start the SSL-enabled Percona container:**
+   ```bash
+   scripts/mysql-ssl-docker.ssh start
+   ```
+
+2. **Use the SSL example configuration:**
+   ```bash
+   cd examples/ssl
+   terraform init
+   terraform apply
+   ```
+
+   The SSL example uses:
+   - `tls_ca_file` pointing at `scripts/.mysql-ssl/ca.pem`
+   - Optional client cert/key at `scripts/.mysql-ssl/client-cert.pem` and `scripts/.mysql-ssl/client-key.pem`
+   - `tls_server_name = "percona-ssl"`
+
 ## Creating a Release
 
 ### Manual Release (Recommended)

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
@@ -33,11 +34,16 @@ type AuditLogFilterProvider struct {
 
 // AuditLogFilterProviderModel describes the provider data model.
 type AuditLogFilterProviderModel struct {
-	Endpoint types.String `tfsdk:"endpoint"`
-	Username types.String `tfsdk:"username"`
-	Password types.String `tfsdk:"password"`
-	Database types.String `tfsdk:"database"`
-	TLS      types.String `tfsdk:"tls"`
+	Endpoint      types.String `tfsdk:"endpoint"`
+	Username      types.String `tfsdk:"username"`
+	Password      types.String `tfsdk:"password"`
+	Database      types.String `tfsdk:"database"`
+	TLS           types.String `tfsdk:"tls"`
+	TLSCAFile     types.String `tfsdk:"tls_ca_file"`
+	TLSCertFile   types.String `tfsdk:"tls_cert_file"`
+	TLSKeyFile    types.String `tfsdk:"tls_key_file"`
+	TLSServerName types.String `tfsdk:"tls_server_name"`
+	TLSSkipVerify types.Bool   `tfsdk:"tls_skip_verify"`
 }
 
 func (p *AuditLogFilterProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -69,6 +75,26 @@ func (p *AuditLogFilterProvider) Schema(ctx context.Context, req provider.Schema
 				Description: "TLS configuration for the MySQL connection. Options: 'true', 'false', 'skip-verify', 'preferred'. Defaults to 'preferred'. May also be provided via MYSQL_TLS environment variable.",
 				Optional:    true,
 			},
+			"tls_ca_file": schema.StringAttribute{
+				Description: "Path to a PEM-encoded CA certificate file for MySQL TLS. May also be provided via MYSQL_TLS_CA environment variable.",
+				Optional:    true,
+			},
+			"tls_cert_file": schema.StringAttribute{
+				Description: "Path to a PEM-encoded client certificate file for MySQL TLS. May also be provided via MYSQL_TLS_CERT environment variable.",
+				Optional:    true,
+			},
+			"tls_key_file": schema.StringAttribute{
+				Description: "Path to a PEM-encoded client key file for MySQL TLS. May also be provided via MYSQL_TLS_KEY environment variable.",
+				Optional:    true,
+			},
+			"tls_server_name": schema.StringAttribute{
+				Description: "Server name for TLS verification (SNI). May also be provided via MYSQL_TLS_SERVER_NAME environment variable.",
+				Optional:    true,
+			},
+			"tls_skip_verify": schema.BoolAttribute{
+				Description: "Skip TLS certificate verification. May also be provided via MYSQL_TLS_SKIP_VERIFY environment variable.",
+				Optional:    true,
+			},
 		},
 		MarkdownDescription: "The Audit Log Filter provider manages Percona Server 8.4+ audit log filters and user assignments. " +
 			"It provides resources to create, modify, and remove audit log filters using the audit_log_filter component functions.",
@@ -96,6 +122,11 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 	password := os.Getenv("MYSQL_PASSWORD")
 	database := os.Getenv("MYSQL_DATABASE")
 	tlsConfig := os.Getenv("MYSQL_TLS")
+	tlsCAFile := os.Getenv("MYSQL_TLS_CA")
+	tlsCertFile := os.Getenv("MYSQL_TLS_CERT")
+	tlsKeyFile := os.Getenv("MYSQL_TLS_KEY")
+	tlsServerName := os.Getenv("MYSQL_TLS_SERVER_NAME")
+	tlsSkipVerifyEnv := os.Getenv("MYSQL_TLS_SKIP_VERIFY")
 	connMaxLifetime := os.Getenv("MYSQL_CONN_MAX_LIFETIME")
 	maxOpenConns := os.Getenv("MYSQL_MAX_OPEN_CONNS")
 	maxIdleConns := os.Getenv("MYSQL_MAX_IDLE_CONNS")
@@ -119,6 +150,18 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 	if !data.TLS.IsNull() {
 		tlsConfig = data.TLS.ValueString()
 	}
+	if !data.TLSCAFile.IsNull() {
+		tlsCAFile = data.TLSCAFile.ValueString()
+	}
+	if !data.TLSCertFile.IsNull() {
+		tlsCertFile = data.TLSCertFile.ValueString()
+	}
+	if !data.TLSKeyFile.IsNull() {
+		tlsKeyFile = data.TLSKeyFile.ValueString()
+	}
+	if !data.TLSServerName.IsNull() {
+		tlsServerName = data.TLSServerName.ValueString()
+	}
 
 	// Default values
 	if endpoint == "" {
@@ -135,6 +178,45 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 
 	if tlsConfig == "" {
 		tlsConfig = "preferred"
+	}
+
+	tlsSkipVerify := false
+	tlsSkipVerifySet := false
+	if tlsSkipVerifyEnv != "" {
+		parsed, err := strconv.ParseBool(tlsSkipVerifyEnv)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Invalid TLS Skip Verify",
+				"MYSQL_TLS_SKIP_VERIFY must be a boolean: "+err.Error(),
+			)
+			return
+		}
+		tlsSkipVerify = parsed
+		tlsSkipVerifySet = true
+	}
+	if !data.TLSSkipVerify.IsNull() {
+		tlsSkipVerify = data.TLSSkipVerify.ValueBool()
+		tlsSkipVerifySet = true
+	}
+
+	customTLSRequested := tlsCAFile != "" || tlsCertFile != "" || tlsKeyFile != "" || tlsServerName != "" || tlsSkipVerifySet
+	if customTLSRequested {
+		if strings.EqualFold(tlsConfig, "false") {
+			resp.Diagnostics.AddError(
+				"TLS Configuration Conflict",
+				"TLS is disabled via tls=\"false\" or MYSQL_TLS=false, but custom TLS settings were provided.",
+			)
+			return
+		}
+		registeredName, err := registerTLSConfig(tlsCAFile, tlsCertFile, tlsKeyFile, tlsServerName, tlsSkipVerify)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Invalid TLS Configuration",
+				"Failed to configure TLS settings: "+err.Error(),
+			)
+			return
+		}
+		tlsConfig = registeredName
 	}
 
 	maxLifetime := 5 * time.Minute
@@ -193,15 +275,15 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 
 	// Create MySQL connection
 	config := mysql.Config{
-		User:              username,
-		Passwd:            password,
-		Net:               "tcp",
-		Addr:              endpoint,
-		DBName:            database,
+		User:                 username,
+		Passwd:               password,
+		Net:                  "tcp",
+		Addr:                 endpoint,
+		DBName:               database,
 		AllowNativePasswords: true,
-		ParseTime:         true,
-		TLSConfig:         tlsConfig,
-		InterpolateParams: true,
+		ParseTime:            true,
+		TLSConfig:            tlsConfig,
+		InterpolateParams:    true,
 	}
 
 	db, err := sql.Open("mysql", config.FormatDSN())

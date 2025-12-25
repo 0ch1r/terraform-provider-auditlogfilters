@@ -272,7 +272,7 @@ ORDER BY event_time DESC;
 ### Runtime Issues
 
 **Issue**: TLS connection problems
-**Solution**: Verify TLS configuration matches server setup
+**Solution**: Verify TLS configuration matches server setup and certificate SANs. For local SSL Docker testing, use `scripts/mysql-ssl-docker.ssh` and set `tls_server_name = "percona-ssl"` or update certificates to include the hostname you connect to.
 
 **Issue**: Permission denied errors
 **Solution**: Ensure MySQL user has required privileges for audit functions

@@ -69,9 +69,37 @@ The provider supports the following environment variables:
 - `MYSQL_PASSWORD` - MySQL password
 - `MYSQL_DATABASE` - Database name (default: "mysql")
 - `MYSQL_TLS` - TLS configuration
+- `MYSQL_TLS_CA` - TLS CA certificate file path
+- `MYSQL_TLS_CERT` - TLS client certificate file path
+- `MYSQL_TLS_KEY` - TLS client key file path
+- `MYSQL_TLS_SERVER_NAME` - TLS server name override
+- `MYSQL_TLS_SKIP_VERIFY` - Skip TLS certificate verification
 - `MYSQL_CONN_MAX_LIFETIME` - Maximum connection lifetime (default: "5m")
 - `MYSQL_MAX_OPEN_CONNS` - Maximum open connections (default: "5")
 - `MYSQL_MAX_IDLE_CONNS` - Maximum idle connections (default: "5")
+
+### SSL Example (Docker)
+
+Start the SSL-enabled container:
+
+```bash
+scripts/mysql-ssl-docker.ssh start
+```
+
+Provider configuration using the generated CA and optional client certs:
+
+```hcl
+provider "auditlogfilters" {
+  endpoint        = "localhost:3307"
+  username        = "tfuser"
+  password        = "tfpass"
+  database        = "mysql"
+  tls_ca_file     = "./scripts/.mysql-ssl/ca.pem"
+  tls_cert_file   = "./scripts/.mysql-ssl/client-cert.pem"
+  tls_key_file    = "./scripts/.mysql-ssl/client-key.pem"
+  tls_server_name = "percona-ssl"
+}
+```
 
 ### Basic Usage
 
