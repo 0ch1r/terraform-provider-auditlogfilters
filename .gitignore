@@ -114,3 +114,4 @@ scripts/.env
 scripts/personal-*
 scripts/tmp/
 scripts/*.local
+scripts/.mysql-ssl
