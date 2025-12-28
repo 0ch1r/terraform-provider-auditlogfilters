@@ -56,6 +56,7 @@ variable "mysql_tls_skip_verify" {
 }
 
 resource "auditlogfilters_filter" "connection_audit" {
+  # Audits connection lifecycle events for all users.
   name = "connection_events_ssl"
   definition = jsonencode({
     filter = {
@@ -70,6 +71,7 @@ resource "auditlogfilters_filter" "connection_audit" {
 }
 
 resource "auditlogfilters_filter" "admin_audit" {
+  # Audits connection and general events for admin/root users.
   name = "admin_activities_ssl"
   definition = jsonencode({
     filter = {
@@ -89,10 +91,26 @@ resource "auditlogfilters_filter" "admin_audit" {
 }
 
 resource "auditlogfilters_filter" "log_disabled" {
+  # Disables audit logging when this filter is assigned.
   name = "log_disabled_ssl"
   definition = jsonencode({
     filter = {
       log = false
+    }
+  })
+}
+
+resource "auditlogfilters_filter" "droptable_audit" {
+  # Audits drop table events.
+  name = "drop_table_audit_ssl"
+  definition = jsonencode({
+    filter = {
+      class = {
+        name = "table_access"
+        event = {
+          name = ["drop"]
+        }
+      }
     }
   })
 }
@@ -106,7 +124,7 @@ resource "auditlogfilters_user_assignment" "admin_connection" {
 resource "auditlogfilters_user_assignment" "default_filter" {
   username    = "%"
   userhost    = "%"
-  filter_name = auditlogfilters_filter.admin_audit.name
+  filter_name = auditlogfilters_filter.droptable_audit.name
 }
 
 output "connection_filter" {
