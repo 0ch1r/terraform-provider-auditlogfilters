@@ -78,15 +78,15 @@ The provider supports the following environment variables:
 - `MYSQL_MAX_OPEN_CONNS` - Maximum open connections (default: "5")
 - `MYSQL_MAX_IDLE_CONNS` - Maximum idle connections (default: "5")
 
-### SSL Example (Docker)
+### SSL/TLS Example (Docker)
 
-Start the SSL-enabled container:
+The provider includes comprehensive TLS/SSL support for secure MySQL connections. Start an SSL-enabled container:
 
 ```bash
-scripts/mysql-ssl-docker.ssh start
+make test-with-mysql
 ```
 
-Provider configuration using the generated CA and optional client certs:
+Provider configuration using the generated CA and optional client certificates:
 
 ```hcl
 provider "auditlogfilters" {
@@ -100,6 +100,8 @@ provider "auditlogfilters" {
   tls_server_name = "percona-ssl"
 }
 ```
+
+See `examples/ssl/` for a complete TLS configuration example.
 
 ### Basic Usage
 
@@ -261,6 +263,22 @@ terraform import auditlogfilters_user_assignment.default "%"
 3. **Plan changes carefully** as filter updates affect active sessions
 4. **Test in non-production** environments first
 
+## Examples
+
+This repository includes several examples demonstrating different use cases:
+
+### SSL/TLS Example
+
+Demonstrates secure connection to MySQL using TLS certificates. Located in `examples/ssl/`.
+
+### Multi-Instance Example
+
+Shows how to manage audit log filters across multiple instances using a reusable module. Located in `examples/multi/`.
+
+### CI/CD Example
+
+Provides a complete GitHub Actions workflow example for a Terraform CI/CD pipeline. Located in `examples/cicd/.github/workflows/terraform.yml`.
+
 ## Development
 
 ### Building the Provider
@@ -353,7 +371,7 @@ cd terraform-provider-auditlogfilters
 go mod tidy
 
 # Install development dependencies
-go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@latest
+make dev-setup
 
 # Build and test
 make build
@@ -428,31 +446,26 @@ When you modify the `definition`, OpenTofu will show:
 
 ## CI/CD and Workflows
 
-### GitHub Actions
+### Provider Workflows
 
-The repository includes comprehensive CI/CD workflows:
+The repository includes CI/CD for provider releases and validation:
 
-#### Tests (`test.yml`)
-- **Build**: Ensures the provider builds successfully
-- **Generate**: Validates generated code is up to date  
-- **Test**: Runs acceptance tests against multiple Terraform versions
-- **Lint**: Runs golangci-lint for code quality
-
-#### Acceptance Tests (`acceptance.yml`)
-- **MySQL Service**: Spins up Percona Server 8.4 container
-- **Component Setup**: Installs audit_log_filter component
-- **E2E Testing**: Full end-to-end provider testing
-- **Cleanup**: Ensures test resources are cleaned up
-
-#### Validation (`validate.yml`)
-- **Format Check**: Validates Go code formatting
-- **Vet**: Runs go vet for static analysis
-- **Unit Tests**: Quick unit test validation
-
-#### Release (`release.yml`)
+#### Release (`.github/workflows/release.yml`)
 - **GoReleaser**: Automated releases with signed binaries
 - **Multi-platform**: Builds for multiple OS/architecture combinations
 - **GPG Signing**: Signs release artifacts for security
+- Triggered on version tags (`v*`) or manual workflow dispatch
+
+### Example Project Workflow
+
+An example Terraform CI/CD workflow is provided for projects that use this provider:
+
+#### Terraform CI/CD Example (`examples/cicd/.github/workflows/terraform.yml`)
+- **Validate**: Checks Terraform formatting, validation, and linting
+- **Plan**: Generates and uploads Terraform plan artifacts
+- **Comment**: Posts plan summaries to pull requests
+- **Apply**: Applies changes when merged to the `main` branch
+- Uses TFLint for policy checking and validation
 
 ### Status Badges
 
@@ -484,6 +497,9 @@ make test
 # Run acceptance tests (requires MySQL)
 make testacc
 
+# Run tests with coverage report
+make test-coverage
+
 # Lint code
 make lint
 
@@ -493,11 +509,8 @@ make fmt
 # Tidy dependencies
 make tidy
 
-# Set up development environment
-make dev-setup
-
-# Run tests with coverage report
-make test-coverage
+# Generate documentation
+make docs
 
 # Set up dev overrides for local testing
 make dev-override
@@ -507,9 +520,6 @@ make dev-clean
 
 # Test with local MySQL container
 make test-with-mysql
-
-# Generate documentation
-make docs
 
 # Clean build artifacts
 make clean

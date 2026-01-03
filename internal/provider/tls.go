@@ -1,6 +1,3 @@
-// Copyright (c) 0ch1r
-// SPDX-License-Identifier: MPL-2.0
-
 package provider
 
 import (
