@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (2026-01-04)
+- **Security and Code Quality Improvements**: Addressed errorlint/gosec findings with tightened database and TLS handling
+- **Enhanced Linter Configuration**: Optimized .golangci.yml with minimum required linters for improved code quality
+- **Issue Process Improvements**: Created comprehensive issue template and clarified supported releases
+- **Windows and FreeBSD Support Removal**: Focused on Linux/macOS deployment targets for better maintainability
+- **Documentation Consolidation**: Consolidated LOCAL_DEVELOPMENT.md into docs/DEVELOPMENT.md for improved organization
+- **Contribution Guidelines Updated**: Fixed Code of Conduct reference and issue tracker links in CONTRIBUTING.md
+- **Comprehensive Examples**: Added detailed documentation examples and clarified licensing
+
 ### Added (2025-12-31)
 - **Simplified CI/CD Workflow Example**: Updated Terraform CI/CD workflow template for improved production usage
 - **Multi-Instance Example Module**: Added example demonstrating multiple audit log filter instances
