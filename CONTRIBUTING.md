@@ -8,17 +8,19 @@ By contributing to this project, you agree that your contributions will be licen
 
 ## Code of Conduct
 
-This project follows the [Terraform Provider Code of Conduct](https://github.com/hashicorp/terraform-provider/blob/main/CODE_OF_CONDUCT.md). Please be respectful and professional in all interactions.
+This project follows the [Contributor Covenant](https://www.contributor-covenant.org/version/3/0/code_of_conduct/). Please be respectful and professional in all interactions.
 
 ## Development Setup
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/yourusername/terraform-provider-auditlogfilters.git
    cd terraform-provider-auditlogfilters
    ```
 
 2. Install dependencies:
+
    ```bash
    make dev-override
    go mod tidy
@@ -32,11 +34,13 @@ This project follows the [Terraform Provider Code of Conduct](https://github.com
 ## Running Tests
 
 1. Run unit tests:
+
    ```bash
    make test
    ```
 
 2. Run tests with coverage:
+
    ```bash
    make test-coverage
    ```
@@ -91,9 +95,10 @@ This provider manages database audit log filters, which are critical security co
 
 ## Bug Reports and Feature Requests
 
-Bug reports and feature requests are welcome! Please use the [issue tracker](https://github.com/yourusername/terraform-provider-auditlogfilters/issues) to submit bug reports or feature requests.
+Bug reports and feature requests are welcome! Please use the [issue tracker](https://github.com/0ch1r/terraform-provider-auditlogfilters/issues) to submit bug reports or feature requests.
 
 When reporting bugs, please include:
+
 - Terraform and provider versions
 - Configuration used
 - Error messages and stack traces
@@ -107,3 +112,4 @@ If you have questions about contributing, please open an issue with the "questio
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for detail
+
