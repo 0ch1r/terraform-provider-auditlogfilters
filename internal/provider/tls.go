@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
@@ -16,7 +17,7 @@ func registerTLSConfig(caFile, certFile, keyFile, serverName string, skipVerify 
 	}
 
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: skipVerify,
+		InsecureSkipVerify: skipVerify, //nolint:gosec // G402: explicitly user-configurable (dev/test); disabling TLS verification is insecure.
 	}
 
 	if serverName != "" {
@@ -24,7 +25,17 @@ func registerTLSConfig(caFile, certFile, keyFile, serverName string, skipVerify 
 	}
 
 	if caFile != "" {
-		caPEM, err := os.ReadFile(caFile)
+		cleanCAFile := filepath.Clean(caFile)
+		fi, err := os.Stat(cleanCAFile)
+		if err != nil {
+			return "", fmt.Errorf("stat TLS CA file: %w", err)
+		}
+		if !fi.Mode().IsRegular() {
+			return "", fmt.Errorf("TLS CA file must be a regular file")
+		}
+
+		// CA path is user-supplied (provider config) and intentionally read after validation.
+		caPEM, err := os.ReadFile(cleanCAFile)
 		if err != nil {
 			return "", fmt.Errorf("read TLS CA file: %w", err)
 		}

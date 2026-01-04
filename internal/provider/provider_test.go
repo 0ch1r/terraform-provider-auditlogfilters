@@ -2,6 +2,7 @@ package provider
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -55,7 +56,7 @@ func TestAccAuditLogFilterResource_basic(t *testing.T) {
 			},
 			// ImportState testing
 			{
-				ResourceName:            "auditlogfilters_filter.test", 
+				ResourceName:            "auditlogfilters_filter.test",
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"definition"}, // Ignore definition due to formatting differences
@@ -98,7 +99,7 @@ func TestAccAuditLogUserAssignmentResource_basic(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create filter first
 			{
-				Config: testAccAuditLogUserAssignmentResourceConfig("test_user", "%", "test_assignment_filter"),
+				Config:             testAccAuditLogUserAssignmentResourceConfig("test_user", "%", "test_assignment_filter"),
 				ExpectNonEmptyPlan: true,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("auditlogfilters_user_assignment.test", "username", "test_user"),
@@ -142,14 +143,14 @@ resource "auditlogfilters_user_assignment" "test" {
 
 func testAccDB() (*sql.DB, error) {
 	config := mysql.Config{
-		User:              os.Getenv("MYSQL_USERNAME"),
-		Passwd:            os.Getenv("MYSQL_PASSWORD"),
-		Net:               "tcp",
-		Addr:              os.Getenv("MYSQL_ENDPOINT"),
-		DBName:            "mysql",
+		User:                 os.Getenv("MYSQL_USERNAME"),
+		Passwd:               os.Getenv("MYSQL_PASSWORD"),
+		Net:                  "tcp",
+		Addr:                 os.Getenv("MYSQL_ENDPOINT"),
+		DBName:               "mysql",
 		AllowNativePasswords: true,
-		ParseTime:         true,
-		InterpolateParams: true,
+		ParseTime:            true,
+		InterpolateParams:    true,
 	}
 
 	db, err := sql.Open("mysql", config.FormatDSN())
@@ -165,12 +166,21 @@ func testAccDB() (*sql.DB, error) {
 	return db, nil
 }
 
-func testAccCheckAuditLogUserAssignmentDestroy(s *terraform.State) error {
+func testAccCheckAuditLogUserAssignmentDestroy(s *terraform.State) (retErr error) {
 	db, err := testAccDB()
 	if err != nil {
 		return fmt.Errorf("failed to open db: %w", err)
 	}
-	defer db.Close()
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			closeWrapped := fmt.Errorf("failed to close db: %w", closeErr)
+			if retErr == nil {
+				retErr = closeWrapped
+				return
+			}
+			retErr = errors.Join(retErr, closeWrapped)
+		}
+	}()
 
 	for _, rs := range s.RootModule().Resources {
 		if rs.Type != "auditlogfilters_user_assignment" {

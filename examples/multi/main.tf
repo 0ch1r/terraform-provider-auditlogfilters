@@ -62,7 +62,7 @@ provider "auditlogfilters" {
 
 # Reuse the audit-config module for each instance
 module "instance1_audit" {
-  source = "./modules/audit-config"
+  source    = "./modules/audit-config"
   providers = { auditlogfilters = auditlogfilters.instance1 }
 
   filter_name       = "connection_events"
@@ -71,7 +71,7 @@ module "instance1_audit" {
 }
 
 module "instance2_audit" {
-  source = "./modules/audit-config"
+  source    = "./modules/audit-config"
   providers = { auditlogfilters = auditlogfilters.instance2 }
 
   filter_name       = "connection_events"

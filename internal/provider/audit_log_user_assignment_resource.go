@@ -359,9 +359,9 @@ func (r *AuditLogUserAssignmentResource) ImportState(ctx context.Context, req re
 
 	// Set the state
 	data := AuditLogUserAssignmentResourceModel{
-		ID:         types.StringValue(userSpec),
-		Username:   types.StringValue(username),
-		Userhost:   types.StringValue(func() string {
+		ID:       types.StringValue(userSpec),
+		Username: types.StringValue(username),
+		Userhost: types.StringValue(func() string {
 			if userhost == "" {
 				return "%"
 			}

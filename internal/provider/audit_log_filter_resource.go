@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -205,7 +206,7 @@ func (r *AuditLogFilterResource) Read(ctx context.Context, req resource.ReadRequ
 	var definition string
 	err := r.db.QueryRowContext(ctx, "SELECT filter_id, filter FROM mysql.audit_log_filter WHERE name = ?", data.Name.ValueString()).Scan(&filterID, &definition)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			// Filter no longer exists, remove from state
 			resp.State.RemoveResource(ctx)
 			return
@@ -294,7 +295,11 @@ func (r *AuditLogFilterResource) Update(ctx context.Context, req resource.Update
 		resp.Diagnostics.AddError("Database Error", "Failed to check user assignments: "+err.Error())
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			resp.Diagnostics.AddError("Database Error", "Failed to close user assignment rows: "+closeErr.Error())
+		}
+	}()
 
 	for rows.Next() {
 		var user userAssignment
@@ -303,6 +308,11 @@ func (r *AuditLogFilterResource) Update(ctx context.Context, req resource.Update
 			return
 		}
 		assignedUsers = append(assignedUsers, user)
+	}
+
+	if err := rows.Err(); err != nil {
+		resp.Diagnostics.AddError("Database Error", "Failed to iterate user assignments: "+err.Error())
+		return
 	}
 
 	// Step 1: Remove the existing filter (this will also remove all user assignments)
@@ -466,7 +476,7 @@ func (r *AuditLogFilterResource) ImportState(ctx context.Context, req resource.I
 	var definition string
 	err := r.db.QueryRowContext(ctx, "SELECT filter_id, filter FROM mysql.audit_log_filter WHERE name = ?", filterName).Scan(&filterID, &definition)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			resp.Diagnostics.AddError(
 				"Filter Not Found",
 				fmt.Sprintf("No audit log filter found with name '%s'", filterName),

@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     auditlogfilters = {
-      source  = "0ch1r/auditlogfilters"
+      source = "0ch1r/auditlogfilters"
     }
   }
 }
