@@ -141,6 +141,9 @@ export MYSQL_TLS="false"
 export MYSQL_CONN_MAX_LIFETIME="5m"
 export MYSQL_MAX_OPEN_CONNS="5"
 export MYSQL_MAX_IDLE_CONNS="5"
+export MYSQL_WAIT_TIMEOUT="10000"
+export MYSQL_INNODB_LOCK_WAIT_TIMEOUT="1"
+export MYSQL_LOCK_WAIT_TIMEOUT="60"
 
 # Run acceptance tests
 make testacc

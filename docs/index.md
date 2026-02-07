@@ -110,6 +110,9 @@ Refer to the [Percona Server Audit Log Filter documentation](https://docs.percon
 - `tls_server_name` (String) Server name for TLS verification (SNI). May also be provided via MYSQL_TLS_SERVER_NAME environment variable.
 - `tls_skip_verify` (Boolean) Skip TLS certificate verification. May also be provided via MYSQL_TLS_SKIP_VERIFY environment variable.
 - `username` (String) MySQL username. May also be provided via MYSQL_USERNAME environment variable.
+- `wait_timeout` (Number) MySQL session wait_timeout in seconds (idle connection timeout). Defaults to 10000. May also be provided via MYSQL_WAIT_TIMEOUT environment variable.
+- `innodb_lock_wait_timeout` (Number) MySQL session innodb_lock_wait_timeout in seconds. Defaults to 1. May also be provided via MYSQL_INNODB_LOCK_WAIT_TIMEOUT environment variable.
+- `lock_wait_timeout` (Number) MySQL session lock_wait_timeout in seconds (metadata lock timeout). Defaults to 60. May also be provided via MYSQL_LOCK_WAIT_TIMEOUT environment variable.
 
 ## Environment Variables
 
@@ -125,6 +128,9 @@ The provider supports configuration via environment variables:
 - `MYSQL_TLS_KEY` - TLS client key file path
 - `MYSQL_TLS_SERVER_NAME` - TLS server name override
 - `MYSQL_TLS_SKIP_VERIFY` - Skip TLS certificate verification
+- `MYSQL_WAIT_TIMEOUT` - Session wait_timeout in seconds (default: `10000`)
+- `MYSQL_INNODB_LOCK_WAIT_TIMEOUT` - Session innodb_lock_wait_timeout in seconds (default: `1`)
+- `MYSQL_LOCK_WAIT_TIMEOUT` - Session lock_wait_timeout in seconds (default: `60`)
 
 ## Filter Definition Format
 

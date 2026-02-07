@@ -77,6 +77,9 @@ The provider supports the following environment variables:
 - `MYSQL_CONN_MAX_LIFETIME` - Maximum connection lifetime (default: "5m")
 - `MYSQL_MAX_OPEN_CONNS` - Maximum open connections (default: "5")
 - `MYSQL_MAX_IDLE_CONNS` - Maximum idle connections (default: "5")
+- `MYSQL_WAIT_TIMEOUT` - Session wait_timeout in seconds (default: "10000")
+- `MYSQL_INNODB_LOCK_WAIT_TIMEOUT` - Session innodb_lock_wait_timeout in seconds (default: "1")
+- `MYSQL_LOCK_WAIT_TIMEOUT` - Session lock_wait_timeout in seconds (default: "60")
 
 ### SSL/TLS Example (Docker)
 

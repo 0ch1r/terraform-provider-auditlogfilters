@@ -31,16 +31,19 @@ type AuditLogFilterProvider struct {
 
 // AuditLogFilterProviderModel describes the provider data model.
 type AuditLogFilterProviderModel struct {
-	Endpoint      types.String `tfsdk:"endpoint"`
-	Username      types.String `tfsdk:"username"`
-	Password      types.String `tfsdk:"password"`
-	Database      types.String `tfsdk:"database"`
-	TLS           types.String `tfsdk:"tls"`
-	TLSCAFile     types.String `tfsdk:"tls_ca_file"`
-	TLSCertFile   types.String `tfsdk:"tls_cert_file"`
-	TLSKeyFile    types.String `tfsdk:"tls_key_file"`
-	TLSServerName types.String `tfsdk:"tls_server_name"`
-	TLSSkipVerify types.Bool   `tfsdk:"tls_skip_verify"`
+	Endpoint                types.String `tfsdk:"endpoint"`
+	Username                types.String `tfsdk:"username"`
+	Password                types.String `tfsdk:"password"`
+	Database                types.String `tfsdk:"database"`
+	TLS                     types.String `tfsdk:"tls"`
+	TLSCAFile               types.String `tfsdk:"tls_ca_file"`
+	TLSCertFile             types.String `tfsdk:"tls_cert_file"`
+	TLSKeyFile              types.String `tfsdk:"tls_key_file"`
+	TLSServerName           types.String `tfsdk:"tls_server_name"`
+	TLSSkipVerify           types.Bool   `tfsdk:"tls_skip_verify"`
+	WaitTimeout             types.Int64  `tfsdk:"wait_timeout"`
+	InnodbLockWaitTimeout   types.Int64  `tfsdk:"innodb_lock_wait_timeout"`
+	LockWaitTimeout         types.Int64  `tfsdk:"lock_wait_timeout"`
 }
 
 func (p *AuditLogFilterProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -92,6 +95,18 @@ func (p *AuditLogFilterProvider) Schema(ctx context.Context, req provider.Schema
 				Description: "Skip TLS certificate verification. May also be provided via MYSQL_TLS_SKIP_VERIFY environment variable.",
 				Optional:    true,
 			},
+			"wait_timeout": schema.Int64Attribute{
+				Description: "MySQL session wait_timeout in seconds (idle connection timeout). Defaults to 10000. May also be provided via MYSQL_WAIT_TIMEOUT environment variable.",
+				Optional:    true,
+			},
+			"innodb_lock_wait_timeout": schema.Int64Attribute{
+				Description: "MySQL session innodb_lock_wait_timeout in seconds. Defaults to 1. May also be provided via MYSQL_INNODB_LOCK_WAIT_TIMEOUT environment variable.",
+				Optional:    true,
+			},
+			"lock_wait_timeout": schema.Int64Attribute{
+				Description: "MySQL session lock_wait_timeout in seconds (metadata lock timeout). Defaults to 60. May also be provided via MYSQL_LOCK_WAIT_TIMEOUT environment variable.",
+				Optional:    true,
+			},
 		},
 		MarkdownDescription: "The Audit Log Filter provider manages Percona Server 8.4+ audit log filters and user assignments. " +
 			"It provides resources to create, modify, and remove audit log filters using the audit_log_filter component functions.",
@@ -127,6 +142,9 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 	connMaxLifetime := os.Getenv("MYSQL_CONN_MAX_LIFETIME")
 	maxOpenConns := os.Getenv("MYSQL_MAX_OPEN_CONNS")
 	maxIdleConns := os.Getenv("MYSQL_MAX_IDLE_CONNS")
+	waitTimeoutEnv := os.Getenv("MYSQL_WAIT_TIMEOUT")
+	innodbLockWaitTimeoutEnv := os.Getenv("MYSQL_INNODB_LOCK_WAIT_TIMEOUT")
+	lockWaitTimeoutEnv := os.Getenv("MYSQL_LOCK_WAIT_TIMEOUT")
 
 	if !data.Endpoint.IsNull() {
 		endpoint = data.Endpoint.ValueString()
@@ -255,6 +273,99 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 		maxIdle = parsed
 	}
 
+	waitTimeout := int64(10000)
+	if waitTimeoutEnv != "" {
+		parsed, err := strconv.ParseInt(waitTimeoutEnv, 10, 64)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Invalid MySQL Wait Timeout",
+				"MYSQL_WAIT_TIMEOUT must be a positive integer (seconds): "+err.Error(),
+			)
+			return
+		}
+		if parsed < 1 {
+			resp.Diagnostics.AddError(
+				"Invalid MySQL Wait Timeout",
+				"MYSQL_WAIT_TIMEOUT must be a positive integer (seconds).",
+			)
+			return
+		}
+		waitTimeout = parsed
+	}
+	if !data.WaitTimeout.IsNull() {
+		parsed := data.WaitTimeout.ValueInt64()
+		if parsed < 1 {
+			resp.Diagnostics.AddError(
+				"Invalid MySQL Wait Timeout",
+				"wait_timeout must be a positive integer (seconds).",
+			)
+			return
+		}
+		waitTimeout = parsed
+	}
+
+	innodbLockWaitTimeout := int64(1)
+	if innodbLockWaitTimeoutEnv != "" {
+		parsed, err := strconv.ParseInt(innodbLockWaitTimeoutEnv, 10, 64)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Invalid InnoDB Lock Wait Timeout",
+				"MYSQL_INNODB_LOCK_WAIT_TIMEOUT must be a positive integer (seconds): "+err.Error(),
+			)
+			return
+		}
+		if parsed < 1 {
+			resp.Diagnostics.AddError(
+				"Invalid InnoDB Lock Wait Timeout",
+				"MYSQL_INNODB_LOCK_WAIT_TIMEOUT must be a positive integer (seconds).",
+			)
+			return
+		}
+		innodbLockWaitTimeout = parsed
+	}
+	if !data.InnodbLockWaitTimeout.IsNull() {
+		parsed := data.InnodbLockWaitTimeout.ValueInt64()
+		if parsed < 1 {
+			resp.Diagnostics.AddError(
+				"Invalid InnoDB Lock Wait Timeout",
+				"innodb_lock_wait_timeout must be a positive integer (seconds).",
+			)
+			return
+		}
+		innodbLockWaitTimeout = parsed
+	}
+
+	lockWaitTimeout := int64(60)
+	if lockWaitTimeoutEnv != "" {
+		parsed, err := strconv.ParseInt(lockWaitTimeoutEnv, 10, 64)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Invalid Lock Wait Timeout",
+				"MYSQL_LOCK_WAIT_TIMEOUT must be a positive integer (seconds): "+err.Error(),
+			)
+			return
+		}
+		if parsed < 1 {
+			resp.Diagnostics.AddError(
+				"Invalid Lock Wait Timeout",
+				"MYSQL_LOCK_WAIT_TIMEOUT must be a positive integer (seconds).",
+			)
+			return
+		}
+		lockWaitTimeout = parsed
+	}
+	if !data.LockWaitTimeout.IsNull() {
+		parsed := data.LockWaitTimeout.ValueInt64()
+		if parsed < 1 {
+			resp.Diagnostics.AddError(
+				"Invalid Lock Wait Timeout",
+				"lock_wait_timeout must be a positive integer (seconds).",
+			)
+			return
+		}
+		lockWaitTimeout = parsed
+	}
+
 	// Allow empty password for testing
 	// if password == "" {
 	//	resp.Diagnostics.AddAttributeError(
@@ -281,6 +392,11 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 		ParseTime:            true,
 		TLSConfig:            tlsConfig,
 		InterpolateParams:    true,
+		Params: map[string]string{
+			"wait_timeout":              strconv.FormatInt(waitTimeout, 10),
+			"innodb_lock_wait_timeout":  strconv.FormatInt(innodbLockWaitTimeout, 10),
+			"lock_wait_timeout":         strconv.FormatInt(lockWaitTimeout, 10),
+		},
 	}
 
 	db, err := sql.Open("mysql", config.FormatDSN())
