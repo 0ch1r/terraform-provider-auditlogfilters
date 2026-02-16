@@ -115,3 +115,5 @@ scripts/personal-*
 scripts/tmp/
 scripts/*.local
 scripts/.mysql-ssl
+
+AGENTS.md
