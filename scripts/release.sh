@@ -77,9 +77,14 @@ fi
 
 # Check for uncommitted changes
 if [[ -n $(git status --porcelain) ]]; then
-    log_error "You have uncommitted changes. Please commit or stash them first."
-    git status --short
-    exit 1
+    if [[ "$DRY_RUN" == "--dry-run" ]]; then
+        log_warning "You have uncommitted changes. Continuing because this is a dry run."
+        git status --short
+    else
+        log_error "You have uncommitted changes. Please commit or stash them first."
+        git status --short
+        exit 1
+    fi
 fi
 
 # Check if tag already exists
@@ -144,12 +149,16 @@ fi
 
 # Update changelog if it exists
 if [[ -f "CHANGELOG.md" ]]; then
-    log_info "Please ensure CHANGELOG.md is updated with changes for $VERSION"
-    read -p "Is CHANGELOG.md ready for $VERSION? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        log_warning "Please update CHANGELOG.md before releasing"
-        exit 1
+    if [[ "$DRY_RUN" == "--dry-run" ]]; then
+        log_info "Dry run: skipping CHANGELOG confirmation prompt for $VERSION"
+    else
+        log_info "Please ensure CHANGELOG.md is updated with changes for $VERSION"
+        read -p "Is CHANGELOG.md ready for $VERSION? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            log_warning "Please update CHANGELOG.md before releasing"
+            exit 1
+        fi
     fi
 fi
 

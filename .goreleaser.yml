@@ -4,7 +4,7 @@ version: 2
 before:
   hooks:
     - go mod tidy
-    - go generate ./...
+    - sh -c 'if command -v terraform >/dev/null 2>&1; then go generate ./...; else echo "terraform not found in PATH, skipping go generate"; fi'
 
 builds:
   - env:
