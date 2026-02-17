@@ -165,7 +165,7 @@ if [[ "$DRY_RUN" == "--dry-run" ]]; then
     
     # Test GoReleaser without publishing
     log_info "Testing GoReleaser build (dry run)..."
-    if goreleaser release --skip=publish --clean; then
+    if goreleaser release --snapshot --clean; then
         log_success "Dry run successful! Release would work."
     else
         log_error "Dry run failed"
