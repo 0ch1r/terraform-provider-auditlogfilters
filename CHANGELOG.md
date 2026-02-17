@@ -5,7 +5,7 @@ All notable changes to the Audit Log Filter Terraform provider will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-02-17
 
 ### Added (2026-01-04)
 - **Security and Code Quality Improvements**: Addressed errorlint/gosec findings with tightened database and TLS handling
@@ -98,38 +98,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Various bug fixes and improvements for production readiness
 - Enhanced development environment with better Docker integration
 - Improved testing infrastructure and CI/CD workflows
-
-## [1.0.0] - TBD
-
-### Added
-- Initial stable release of the Audit Log Filter Terraform provider
-- Full feature set for audit log filter management
-- Complete test coverage
-- Production-ready documentation
-- GitHub Actions Workflows: Comprehensive CI/CD with lint, build, and acceptance tests
-- Multi-platform Releases: Automated releases with GoReleaser for multiple OS/arch combinations
-- Code Quality: golangci-lint configuration with comprehensive rule set
-- Issue Templates: Bug report and feature request templates for better issue management
-- PR Template: Structured pull request template with testing and documentation checklists
-- Dependabot: Automated dependency updates for Go modules and GitHub Actions
-- Enhanced Update Behavior: Filter updates now use remove-then-recreate pattern with automatic user assignment restoration
-- Comprehensive Warnings: Added detailed warnings about filter recreation impact on active sessions
-- User Assignment Protection: Automatically preserve and restore all user assignments during filter updates
-- Comprehensive TLS/SSL support for secure MySQL connections
-- Complete CI/CD workflow templates for production deployments
-- docker-based MySQL development environment
-
-### Changed
-- N/A (Initial release)
-
-### Deprecated
-- N/A (Initial release)
-
-### Removed
-- N/A (Initial release)
-
-### Fixed
-- N/A (Initial release)
-
-### Security
-- N/A (Initial release)
