@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -78,6 +79,9 @@ func (r *AuditLogFilterResource) Schema(ctx context.Context, req resource.Schema
 				Description: "JSON definition of the audit log filter. This must be a valid JSON object " +
 					"that defines the filter rules according to MySQL audit log filter syntax. **WARNING**: Changing this value will cause the filter to be recreated, temporarily affecting active sessions using this filter.",
 				Required: true,
+				Validators: []validator.String{
+					auditLogFilterDefinitionValidator{},
+				},
 			},
 			"filter_id": schema.Int64Attribute{
 				Description: "Internal filter ID assigned by MySQL.",
@@ -117,13 +121,12 @@ func (r *AuditLogFilterResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	// Validate JSON format of definition
-	var jsonData interface{}
-	if err := json.Unmarshal([]byte(data.Definition.ValueString()), &jsonData); err != nil {
+	// Validate filter definition structure and syntax
+	if err := validateAuditLogFilterDefinition(data.Definition.ValueString()); err != nil {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("definition"),
 			"Invalid JSON Definition",
-			"The filter definition must be valid JSON: "+err.Error(),
+			err.Error(),
 		)
 		return
 	}
@@ -240,13 +243,12 @@ func (r *AuditLogFilterResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	// Validate JSON format of definition
-	var jsonData interface{}
-	if err := json.Unmarshal([]byte(data.Definition.ValueString()), &jsonData); err != nil {
+	// Validate filter definition structure and syntax
+	if err := validateAuditLogFilterDefinition(data.Definition.ValueString()); err != nil {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("definition"),
 			"Invalid JSON Definition",
-			"The filter definition must be valid JSON: "+err.Error(),
+			err.Error(),
 		)
 		return
 	}

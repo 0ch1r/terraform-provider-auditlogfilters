@@ -68,6 +68,136 @@ resource "auditlogfilters_filter" "log_disabled" {
   })
 }
 
+# Create a complex audit log filter
+resource "auditlogfilters_filter" "complex_filter" {
+  name = "complex_filter"
+  definition = jsonencode({
+    filter = {
+      class = [
+        {
+          name = "query"
+          event = {
+            name = ["start", "status_end"]
+            log = {
+              or = [
+                {
+                  field = {
+                    name  = "sql_command_id"
+                    value = "create_db"
+                  }
+                },
+                {
+                  field = {
+                    name  = "sql_command_id"
+                    value = "drop_db"
+                  }
+                },
+                {
+                  field = {
+                    name  = "sql_command_id"
+                    value = "alter_user"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  })
+}
+
+resource "auditlogfilters_filter" "testuser_ddl_dml" {
+  name = "testuser_ddl_dml"
+  definition = jsonencode({
+    filter = {
+      class = [
+        {
+          name = "table_access"
+          event = {
+            name = ["insert", "update", "delete"]
+            log = {
+              and = [
+                {
+                  field = {
+                    name  = "table_database.str"
+                    value = "prod"
+                  }
+                },
+                {
+                  or = [
+                    {
+                      field = {
+                        name  = "table_name.str"
+                        value = "employee"
+                      }
+                    },
+                    {
+                      field = {
+                        name  = "table_name.str"
+                        value = "projects"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          name = "general"
+          event = {
+            name = "status"
+            log = {
+              and = [
+                {
+                  field = {
+                    name  = "general_command.str"
+                    value = "Query"
+                  }
+                },
+                {
+                  or = [
+                    {
+                      field = {
+                        name  = "general_sql_command.str"
+                        value = "create_db"
+                      }
+                    },
+                    {
+                      field = {
+                        name  = "general_sql_command.str"
+                        value = "drop_db"
+                      }
+                    },
+                    {
+                      field = {
+                        name  = "general_sql_command.str"
+                        value = "alter_table"
+                      }
+                    },
+                    {
+                      field = {
+                        name  = "general_sql_command.str"
+                        value = "create_table"
+                      }
+                    },
+                    {
+                      field = {
+                        name  = "general_sql_command.str"
+                        value = "drop_table"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  })
+}
 # Assign the connection filter to a specific user
 # resource "auditlogfilters_user_assignment" "admin_connection" {
 #   username    = "admin"

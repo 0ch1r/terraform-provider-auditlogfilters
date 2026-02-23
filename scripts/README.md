@@ -10,6 +10,7 @@ scripts/
 ├── .env.example        # Environment variables template
 ├── .env               # Your local environment (gitignored)
 ├── dev-setup.sh       # Development environment setup
+├── json-helper        # Convert JSON into provider-compatible terraform shape
 ├── release.sh         # Release automation script
 ├── test-local.sh      # Local testing script
 ├── personal-*         # Your personal scripts (gitignored)
@@ -106,6 +107,31 @@ scripts/
 
 # Create pre-release
 ./scripts/release.sh v1.0.0-beta1
+```
+
+### 🧩 `json-helper`
+**Purpose:** Normalize audit filter JSON into the exact shape expected by `auditlogfilters_filter.definition`.
+
+**Features:**
+- Reads JSON from a file or stdin
+- Normalizes input to ensure a top-level `filter` object
+- Handles wrapped payloads like `{ "definition": "{...json...}" }`
+- Outputs Terraform `definition = jsonencode({...})` syntax
+- Optional full resource block output
+
+**Usage:**
+```bash
+# From file -> definition snippet
+./scripts/json-helper ./filter.json
+
+# From stdin -> definition snippet
+cat ./filter.json | ./scripts/json-helper
+
+# Output normalized JSON only
+./scripts/json-helper ./filter.json --json
+
+# Output full Terraform resource
+./scripts/json-helper ./filter.json --full-resource --resource-name prod_filter --filter-name prod_filter
 ```
 
 ## 🔧 Environment Configuration
@@ -270,4 +296,3 @@ golangci-lint version
 ```
 
 **Note:** The dev-setup script will automatically add this to your PATH for the current session, but you may need to add it permanently to your shell profile for future sessions.
-
