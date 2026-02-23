@@ -5,6 +5,21 @@ All notable changes to the Audit Log Filter Terraform provider will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added (2026-02-23)
+
+- **Filter Definition Validator**: Added `auditLogFilterDefinitionValidator` to validate `auditlogfilters_filter.definition` at schema level with clear diagnostic errors.
+- **Logical Condition Tree Validation**: Added recursive validation for MySQL audit log logical operators (`and`, `or`, `not`, `field`) to ensure structurally valid condition objects.
+- **Validation Unit Tests**: Added comprehensive tests for valid/invalid definitions, including malformed JSON, missing top-level `filter`, and invalid mixed-operator condition objects.
+- **JSON Helper Script**: Added `scripts/json-helper` to normalize audit filter JSON and output Terraform-compatible `jsonencode` snippets or full resource blocks.
+- **Expanded Terraform Examples**: Added complex filter examples in `examples/test/test.tf` demonstrating nested logical conditions.
+
+### Changed (2026-02-23)
+
+- **Create/Update Validation Flow**: Replaced basic JSON unmarshal checks in filter resource create/update with shared structural validation function for consistent behavior.
+- **Scripts Documentation**: Updated `scripts/README.md` to document the new `json-helper` utility and usage patterns.
+
 ## [0.1.1] - 2026-02-17
 
 ### Added (2026-01-04)
