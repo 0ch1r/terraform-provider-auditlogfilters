@@ -5,6 +5,14 @@ All notable changes to the Audit Log Filter Terraform provider will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed (2026-02-24)
+
+- **Provider Configure Panic Prevention**: Fixed panic-prone validation in `Configure` when `MYSQL_MAX_OPEN_CONNS` or `MYSQL_MAX_IDLE_CONNS` are negative values.
+- **Safer Connection Pool Parsing**: Added non-negative integer parsing helper used by max connection env var validation to prevent nil error dereference paths.
+- **Regression Test Coverage**: Added tests for non-negative integer parsing to cover valid, negative, and non-integer input handling.
+
 ## [0.2.0] - 2026-02-23
 
 ### Added (2026-02-23)

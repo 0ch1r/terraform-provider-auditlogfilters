@@ -249,8 +249,8 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 
 	maxOpen := 5
 	if maxOpenConns != "" {
-		parsed, err := strconv.Atoi(maxOpenConns)
-		if err != nil || parsed < 0 {
+		parsed, err := parseNonNegativeInt(maxOpenConns)
+		if err != nil {
 			resp.Diagnostics.AddError(
 				"Invalid MySQL Max Open Conns",
 				"MYSQL_MAX_OPEN_CONNS must be a non-negative integer: "+err.Error(),
@@ -262,8 +262,8 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 
 	maxIdle := 5
 	if maxIdleConns != "" {
-		parsed, err := strconv.Atoi(maxIdleConns)
-		if err != nil || parsed < 0 {
+		parsed, err := parseNonNegativeInt(maxIdleConns)
+		if err != nil {
 			resp.Diagnostics.AddError(
 				"Invalid MySQL Max Idle Conns",
 				"MYSQL_MAX_IDLE_CONNS must be a non-negative integer: "+err.Error(),
@@ -464,4 +464,15 @@ func New(version string) func() provider.Provider {
 			version: version,
 		}
 	}
+}
+
+func parseNonNegativeInt(value string) (int, error) {
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, err
+	}
+	if parsed < 0 {
+		return 0, fmt.Errorf("value must be a non-negative integer")
+	}
+	return parsed, nil
 }
