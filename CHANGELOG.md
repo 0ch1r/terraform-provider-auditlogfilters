@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (2026-02-25)
+
+- **Configure Parsing Cleanup**: Refactored `Configure` to use shared helper functions for string override resolution, duration parsing, and positive timeout validation.
+- **Timeout Validation Deduplication**: Consolidated repeated timeout checks (`wait_timeout`, `innodb_lock_wait_timeout`, `lock_wait_timeout`) through shared parsing and validation helpers while preserving existing diagnostics and behavior.
+
+### Added (2026-02-25)
+
+- **Config Helper Unit Tests**: Added tests for `parsePositiveInt64`, `validatePositiveInt64`, and `configStringOrEnv` to verify range handling and config-over-env precedence.
+
 ### Fixed (2026-02-24)
 
 - **Provider Configure Panic Prevention**: Fixed panic-prone validation in `Configure` when `MYSQL_MAX_OPEN_CONNS` or `MYSQL_MAX_IDLE_CONNS` are negative values.

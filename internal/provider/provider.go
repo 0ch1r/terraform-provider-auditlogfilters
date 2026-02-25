@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -19,6 +20,8 @@ import (
 
 // Ensure AuditLogFilterProvider satisfies various provider interfaces.
 var _ provider.Provider = &AuditLogFilterProvider{}
+
+var errNonPositiveInt64 = errors.New("value must be a positive integer (seconds)")
 
 // AuditLogFilterProvider defines the provider implementation.
 type AuditLogFilterProvider struct {
@@ -146,37 +149,15 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 	innodbLockWaitTimeoutEnv := os.Getenv("MYSQL_INNODB_LOCK_WAIT_TIMEOUT")
 	lockWaitTimeoutEnv := os.Getenv("MYSQL_LOCK_WAIT_TIMEOUT")
 
-	if !data.Endpoint.IsNull() {
-		endpoint = data.Endpoint.ValueString()
-	}
-
-	if !data.Username.IsNull() {
-		username = data.Username.ValueString()
-	}
-
-	if !data.Password.IsNull() {
-		password = data.Password.ValueString()
-	}
-
-	if !data.Database.IsNull() {
-		database = data.Database.ValueString()
-	}
-
-	if !data.TLS.IsNull() {
-		tlsConfig = data.TLS.ValueString()
-	}
-	if !data.TLSCAFile.IsNull() {
-		tlsCAFile = data.TLSCAFile.ValueString()
-	}
-	if !data.TLSCertFile.IsNull() {
-		tlsCertFile = data.TLSCertFile.ValueString()
-	}
-	if !data.TLSKeyFile.IsNull() {
-		tlsKeyFile = data.TLSKeyFile.ValueString()
-	}
-	if !data.TLSServerName.IsNull() {
-		tlsServerName = data.TLSServerName.ValueString()
-	}
+	endpoint = configStringOrEnv(data.Endpoint, endpoint)
+	username = configStringOrEnv(data.Username, username)
+	password = configStringOrEnv(data.Password, password)
+	database = configStringOrEnv(data.Database, database)
+	tlsConfig = configStringOrEnv(data.TLS, tlsConfig)
+	tlsCAFile = configStringOrEnv(data.TLSCAFile, tlsCAFile)
+	tlsCertFile = configStringOrEnv(data.TLSCertFile, tlsCertFile)
+	tlsKeyFile = configStringOrEnv(data.TLSKeyFile, tlsKeyFile)
+	tlsServerName = configStringOrEnv(data.TLSServerName, tlsServerName)
 
 	// Default values
 	if endpoint == "" {
@@ -236,7 +217,7 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 
 	maxLifetime := 5 * time.Minute
 	if connMaxLifetime != "" {
-		parsed, err := time.ParseDuration(connMaxLifetime)
+		parsed, err := parseDuration(connMaxLifetime)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Invalid MySQL Connection Lifetime",
@@ -275,18 +256,18 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 
 	waitTimeout := int64(10000)
 	if waitTimeoutEnv != "" {
-		parsed, err := strconv.ParseInt(waitTimeoutEnv, 10, 64)
+		parsed, err := parsePositiveInt64(waitTimeoutEnv)
 		if err != nil {
+			if errors.Is(err, errNonPositiveInt64) {
+				resp.Diagnostics.AddError(
+					"Invalid MySQL Wait Timeout",
+					"MYSQL_WAIT_TIMEOUT must be a positive integer (seconds).",
+				)
+				return
+			}
 			resp.Diagnostics.AddError(
 				"Invalid MySQL Wait Timeout",
 				"MYSQL_WAIT_TIMEOUT must be a positive integer (seconds): "+err.Error(),
-			)
-			return
-		}
-		if parsed < 1 {
-			resp.Diagnostics.AddError(
-				"Invalid MySQL Wait Timeout",
-				"MYSQL_WAIT_TIMEOUT must be a positive integer (seconds).",
 			)
 			return
 		}
@@ -294,7 +275,7 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 	}
 	if !data.WaitTimeout.IsNull() {
 		parsed := data.WaitTimeout.ValueInt64()
-		if parsed < 1 {
+		if err := validatePositiveInt64(parsed); err != nil {
 			resp.Diagnostics.AddError(
 				"Invalid MySQL Wait Timeout",
 				"wait_timeout must be a positive integer (seconds).",
@@ -306,18 +287,18 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 
 	innodbLockWaitTimeout := int64(1)
 	if innodbLockWaitTimeoutEnv != "" {
-		parsed, err := strconv.ParseInt(innodbLockWaitTimeoutEnv, 10, 64)
+		parsed, err := parsePositiveInt64(innodbLockWaitTimeoutEnv)
 		if err != nil {
+			if errors.Is(err, errNonPositiveInt64) {
+				resp.Diagnostics.AddError(
+					"Invalid InnoDB Lock Wait Timeout",
+					"MYSQL_INNODB_LOCK_WAIT_TIMEOUT must be a positive integer (seconds).",
+				)
+				return
+			}
 			resp.Diagnostics.AddError(
 				"Invalid InnoDB Lock Wait Timeout",
 				"MYSQL_INNODB_LOCK_WAIT_TIMEOUT must be a positive integer (seconds): "+err.Error(),
-			)
-			return
-		}
-		if parsed < 1 {
-			resp.Diagnostics.AddError(
-				"Invalid InnoDB Lock Wait Timeout",
-				"MYSQL_INNODB_LOCK_WAIT_TIMEOUT must be a positive integer (seconds).",
 			)
 			return
 		}
@@ -325,7 +306,7 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 	}
 	if !data.InnodbLockWaitTimeout.IsNull() {
 		parsed := data.InnodbLockWaitTimeout.ValueInt64()
-		if parsed < 1 {
+		if err := validatePositiveInt64(parsed); err != nil {
 			resp.Diagnostics.AddError(
 				"Invalid InnoDB Lock Wait Timeout",
 				"innodb_lock_wait_timeout must be a positive integer (seconds).",
@@ -337,18 +318,18 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 
 	lockWaitTimeout := int64(60)
 	if lockWaitTimeoutEnv != "" {
-		parsed, err := strconv.ParseInt(lockWaitTimeoutEnv, 10, 64)
+		parsed, err := parsePositiveInt64(lockWaitTimeoutEnv)
 		if err != nil {
+			if errors.Is(err, errNonPositiveInt64) {
+				resp.Diagnostics.AddError(
+					"Invalid Lock Wait Timeout",
+					"MYSQL_LOCK_WAIT_TIMEOUT must be a positive integer (seconds).",
+				)
+				return
+			}
 			resp.Diagnostics.AddError(
 				"Invalid Lock Wait Timeout",
 				"MYSQL_LOCK_WAIT_TIMEOUT must be a positive integer (seconds): "+err.Error(),
-			)
-			return
-		}
-		if parsed < 1 {
-			resp.Diagnostics.AddError(
-				"Invalid Lock Wait Timeout",
-				"MYSQL_LOCK_WAIT_TIMEOUT must be a positive integer (seconds).",
 			)
 			return
 		}
@@ -356,7 +337,7 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 	}
 	if !data.LockWaitTimeout.IsNull() {
 		parsed := data.LockWaitTimeout.ValueInt64()
-		if parsed < 1 {
+		if err := validatePositiveInt64(parsed); err != nil {
 			resp.Diagnostics.AddError(
 				"Invalid Lock Wait Timeout",
 				"lock_wait_timeout must be a positive integer (seconds).",
@@ -475,4 +456,33 @@ func parseNonNegativeInt(value string) (int, error) {
 		return 0, fmt.Errorf("value must be a non-negative integer")
 	}
 	return parsed, nil
+}
+
+func parseDuration(value string) (time.Duration, error) {
+	return time.ParseDuration(value)
+}
+
+func parsePositiveInt64(value string) (int64, error) {
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	if parsed < 1 {
+		return 0, errNonPositiveInt64
+	}
+	return parsed, nil
+}
+
+func validatePositiveInt64(value int64) error {
+	if value < 1 {
+		return errNonPositiveInt64
+	}
+	return nil
+}
+
+func configStringOrEnv(attr types.String, envValue string) string {
+	if !attr.IsNull() {
+		return attr.ValueString()
+	}
+	return envValue
 }
