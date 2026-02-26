@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (2026-02-26)
+
+- **Configure Flow Decomposition**: Split provider `Configure` into focused internal phases for raw config loading, parsing/validation, and DB connect/component verification while preserving existing behavior and diagnostics.
+- **Connection Setup Isolation**: Centralized MySQL open/ping/component verification logic into a dedicated helper to reduce `Configure` complexity and improve maintainability.
+
+### Added (2026-02-26)
+
+- **Provider Config Parsing Tests**: Added tests covering raw config env/config precedence, default value application, and invalid wait timeout diagnostics in the extracted parsing path.
+
 ### Changed (2026-02-25)
 
 - **Configure Parsing Cleanup**: Refactored `Configure` to use shared helper functions for string override resolution, duration parsing, and positive timeout validation.

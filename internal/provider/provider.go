@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -34,19 +35,49 @@ type AuditLogFilterProvider struct {
 
 // AuditLogFilterProviderModel describes the provider data model.
 type AuditLogFilterProviderModel struct {
-	Endpoint                types.String `tfsdk:"endpoint"`
-	Username                types.String `tfsdk:"username"`
-	Password                types.String `tfsdk:"password"`
-	Database                types.String `tfsdk:"database"`
-	TLS                     types.String `tfsdk:"tls"`
-	TLSCAFile               types.String `tfsdk:"tls_ca_file"`
-	TLSCertFile             types.String `tfsdk:"tls_cert_file"`
-	TLSKeyFile              types.String `tfsdk:"tls_key_file"`
-	TLSServerName           types.String `tfsdk:"tls_server_name"`
-	TLSSkipVerify           types.Bool   `tfsdk:"tls_skip_verify"`
-	WaitTimeout             types.Int64  `tfsdk:"wait_timeout"`
-	InnodbLockWaitTimeout   types.Int64  `tfsdk:"innodb_lock_wait_timeout"`
-	LockWaitTimeout         types.Int64  `tfsdk:"lock_wait_timeout"`
+	Endpoint              types.String `tfsdk:"endpoint"`
+	Username              types.String `tfsdk:"username"`
+	Password              types.String `tfsdk:"password"`
+	Database              types.String `tfsdk:"database"`
+	TLS                   types.String `tfsdk:"tls"`
+	TLSCAFile             types.String `tfsdk:"tls_ca_file"`
+	TLSCertFile           types.String `tfsdk:"tls_cert_file"`
+	TLSKeyFile            types.String `tfsdk:"tls_key_file"`
+	TLSServerName         types.String `tfsdk:"tls_server_name"`
+	TLSSkipVerify         types.Bool   `tfsdk:"tls_skip_verify"`
+	WaitTimeout           types.Int64  `tfsdk:"wait_timeout"`
+	InnodbLockWaitTimeout types.Int64  `tfsdk:"innodb_lock_wait_timeout"`
+	LockWaitTimeout       types.Int64  `tfsdk:"lock_wait_timeout"`
+}
+
+type providerRawConfig struct {
+	endpoint                 string
+	username                 string
+	password                 string
+	database                 string
+	tlsConfig                string
+	tlsCAFile                string
+	tlsCertFile              string
+	tlsKeyFile               string
+	tlsServerName            string
+	tlsSkipVerifyEnv         string
+	connMaxLifetimeEnv       string
+	maxOpenConnsEnv          string
+	maxIdleConnsEnv          string
+	waitTimeoutEnv           string
+	innodbLockWaitTimeoutEnv string
+	lockWaitTimeoutEnv       string
+	tlsSkipVerify            types.Bool
+	waitTimeout              types.Int64
+	innodbLockWaitTimeout    types.Int64
+	lockWaitTimeout          types.Int64
+}
+
+type providerValidatedConfig struct {
+	mysqlConfig  mysql.Config
+	maxLifetime  time.Duration
+	maxOpenConns int
+	maxIdleConns int
 }
 
 func (p *AuditLogFilterProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -131,220 +162,10 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 		p.db = nil
 	}
 
-	// Configuration values
-	endpoint := os.Getenv("MYSQL_ENDPOINT")
-	username := os.Getenv("MYSQL_USERNAME")
-	password := os.Getenv("MYSQL_PASSWORD")
-	database := os.Getenv("MYSQL_DATABASE")
-	tlsConfig := os.Getenv("MYSQL_TLS")
-	tlsCAFile := os.Getenv("MYSQL_TLS_CA")
-	tlsCertFile := os.Getenv("MYSQL_TLS_CERT")
-	tlsKeyFile := os.Getenv("MYSQL_TLS_KEY")
-	tlsServerName := os.Getenv("MYSQL_TLS_SERVER_NAME")
-	tlsSkipVerifyEnv := os.Getenv("MYSQL_TLS_SKIP_VERIFY")
-	connMaxLifetime := os.Getenv("MYSQL_CONN_MAX_LIFETIME")
-	maxOpenConns := os.Getenv("MYSQL_MAX_OPEN_CONNS")
-	maxIdleConns := os.Getenv("MYSQL_MAX_IDLE_CONNS")
-	waitTimeoutEnv := os.Getenv("MYSQL_WAIT_TIMEOUT")
-	innodbLockWaitTimeoutEnv := os.Getenv("MYSQL_INNODB_LOCK_WAIT_TIMEOUT")
-	lockWaitTimeoutEnv := os.Getenv("MYSQL_LOCK_WAIT_TIMEOUT")
-
-	endpoint = configStringOrEnv(data.Endpoint, endpoint)
-	username = configStringOrEnv(data.Username, username)
-	password = configStringOrEnv(data.Password, password)
-	database = configStringOrEnv(data.Database, database)
-	tlsConfig = configStringOrEnv(data.TLS, tlsConfig)
-	tlsCAFile = configStringOrEnv(data.TLSCAFile, tlsCAFile)
-	tlsCertFile = configStringOrEnv(data.TLSCertFile, tlsCertFile)
-	tlsKeyFile = configStringOrEnv(data.TLSKeyFile, tlsKeyFile)
-	tlsServerName = configStringOrEnv(data.TLSServerName, tlsServerName)
-
-	// Default values
-	if endpoint == "" {
-		endpoint = "localhost:3306"
-	}
-
-	if username == "" {
-		username = "root"
-	}
-
-	if database == "" {
-		database = "mysql"
-	}
-
-	if tlsConfig == "" {
-		tlsConfig = "preferred"
-	}
-
-	tlsSkipVerify := false
-	tlsSkipVerifySet := false
-	if tlsSkipVerifyEnv != "" {
-		parsed, err := strconv.ParseBool(tlsSkipVerifyEnv)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Invalid TLS Skip Verify",
-				"MYSQL_TLS_SKIP_VERIFY must be a boolean: "+err.Error(),
-			)
-			return
-		}
-		tlsSkipVerify = parsed
-		tlsSkipVerifySet = true
-	}
-	if !data.TLSSkipVerify.IsNull() {
-		tlsSkipVerify = data.TLSSkipVerify.ValueBool()
-		tlsSkipVerifySet = true
-	}
-
-	customTLSRequested := tlsCAFile != "" || tlsCertFile != "" || tlsKeyFile != "" || tlsServerName != "" || tlsSkipVerifySet
-	if customTLSRequested {
-		if strings.EqualFold(tlsConfig, "false") {
-			resp.Diagnostics.AddError(
-				"TLS Configuration Conflict",
-				"TLS is disabled via tls=\"false\" or MYSQL_TLS=false, but custom TLS settings were provided.",
-			)
-			return
-		}
-		registeredName, err := registerTLSConfig(tlsCAFile, tlsCertFile, tlsKeyFile, tlsServerName, tlsSkipVerify)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Invalid TLS Configuration",
-				"Failed to configure TLS settings: "+err.Error(),
-			)
-			return
-		}
-		tlsConfig = registeredName
-	}
-
-	maxLifetime := 5 * time.Minute
-	if connMaxLifetime != "" {
-		parsed, err := parseDuration(connMaxLifetime)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Invalid MySQL Connection Lifetime",
-				"MYSQL_CONN_MAX_LIFETIME must be a valid duration (e.g. 5m, 30s, 1h): "+err.Error(),
-			)
-			return
-		}
-		maxLifetime = parsed
-	}
-
-	maxOpen := 5
-	if maxOpenConns != "" {
-		parsed, err := parseNonNegativeInt(maxOpenConns)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Invalid MySQL Max Open Conns",
-				"MYSQL_MAX_OPEN_CONNS must be a non-negative integer: "+err.Error(),
-			)
-			return
-		}
-		maxOpen = parsed
-	}
-
-	maxIdle := 5
-	if maxIdleConns != "" {
-		parsed, err := parseNonNegativeInt(maxIdleConns)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Invalid MySQL Max Idle Conns",
-				"MYSQL_MAX_IDLE_CONNS must be a non-negative integer: "+err.Error(),
-			)
-			return
-		}
-		maxIdle = parsed
-	}
-
-	waitTimeout := int64(10000)
-	if waitTimeoutEnv != "" {
-		parsed, err := parsePositiveInt64(waitTimeoutEnv)
-		if err != nil {
-			if errors.Is(err, errNonPositiveInt64) {
-				resp.Diagnostics.AddError(
-					"Invalid MySQL Wait Timeout",
-					"MYSQL_WAIT_TIMEOUT must be a positive integer (seconds).",
-				)
-				return
-			}
-			resp.Diagnostics.AddError(
-				"Invalid MySQL Wait Timeout",
-				"MYSQL_WAIT_TIMEOUT must be a positive integer (seconds): "+err.Error(),
-			)
-			return
-		}
-		waitTimeout = parsed
-	}
-	if !data.WaitTimeout.IsNull() {
-		parsed := data.WaitTimeout.ValueInt64()
-		if err := validatePositiveInt64(parsed); err != nil {
-			resp.Diagnostics.AddError(
-				"Invalid MySQL Wait Timeout",
-				"wait_timeout must be a positive integer (seconds).",
-			)
-			return
-		}
-		waitTimeout = parsed
-	}
-
-	innodbLockWaitTimeout := int64(1)
-	if innodbLockWaitTimeoutEnv != "" {
-		parsed, err := parsePositiveInt64(innodbLockWaitTimeoutEnv)
-		if err != nil {
-			if errors.Is(err, errNonPositiveInt64) {
-				resp.Diagnostics.AddError(
-					"Invalid InnoDB Lock Wait Timeout",
-					"MYSQL_INNODB_LOCK_WAIT_TIMEOUT must be a positive integer (seconds).",
-				)
-				return
-			}
-			resp.Diagnostics.AddError(
-				"Invalid InnoDB Lock Wait Timeout",
-				"MYSQL_INNODB_LOCK_WAIT_TIMEOUT must be a positive integer (seconds): "+err.Error(),
-			)
-			return
-		}
-		innodbLockWaitTimeout = parsed
-	}
-	if !data.InnodbLockWaitTimeout.IsNull() {
-		parsed := data.InnodbLockWaitTimeout.ValueInt64()
-		if err := validatePositiveInt64(parsed); err != nil {
-			resp.Diagnostics.AddError(
-				"Invalid InnoDB Lock Wait Timeout",
-				"innodb_lock_wait_timeout must be a positive integer (seconds).",
-			)
-			return
-		}
-		innodbLockWaitTimeout = parsed
-	}
-
-	lockWaitTimeout := int64(60)
-	if lockWaitTimeoutEnv != "" {
-		parsed, err := parsePositiveInt64(lockWaitTimeoutEnv)
-		if err != nil {
-			if errors.Is(err, errNonPositiveInt64) {
-				resp.Diagnostics.AddError(
-					"Invalid Lock Wait Timeout",
-					"MYSQL_LOCK_WAIT_TIMEOUT must be a positive integer (seconds).",
-				)
-				return
-			}
-			resp.Diagnostics.AddError(
-				"Invalid Lock Wait Timeout",
-				"MYSQL_LOCK_WAIT_TIMEOUT must be a positive integer (seconds): "+err.Error(),
-			)
-			return
-		}
-		lockWaitTimeout = parsed
-	}
-	if !data.LockWaitTimeout.IsNull() {
-		parsed := data.LockWaitTimeout.ValueInt64()
-		if err := validatePositiveInt64(parsed); err != nil {
-			resp.Diagnostics.AddError(
-				"Invalid Lock Wait Timeout",
-				"lock_wait_timeout must be a positive integer (seconds).",
-			)
-			return
-		}
-		lockWaitTimeout = parsed
+	rawConfig := loadRawConfig(data)
+	validatedConfig, ok := parseAndValidateProviderConfig(rawConfig, &resp.Diagnostics)
+	if !ok {
+		return
 	}
 
 	// Allow empty password for testing
@@ -361,69 +182,296 @@ func (p *AuditLogFilterProvider) Configure(ctx context.Context, req provider.Con
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	// Create MySQL connection
-	config := mysql.Config{
-		User:                 username,
-		Passwd:               password,
-		Net:                  "tcp",
-		Addr:                 endpoint,
-		DBName:               database,
-		AllowNativePasswords: true,
-		ParseTime:            true,
-		TLSConfig:            tlsConfig,
-		InterpolateParams:    true,
-		Params: map[string]string{
-			"wait_timeout":              strconv.FormatInt(waitTimeout, 10),
-			"innodb_lock_wait_timeout":  strconv.FormatInt(innodbLockWaitTimeout, 10),
-			"lock_wait_timeout":         strconv.FormatInt(lockWaitTimeout, 10),
-		},
-	}
-
-	db, err := sql.Open("mysql", config.FormatDSN())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to Create MySQL Client",
-			"An unexpected error occurred when creating the MySQL client. "+
-				"If the error is not clear, please contact the provider developers.\n\n"+
-				"MySQL Client Error: "+err.Error(),
-		)
-		return
-	}
-
-	db.SetConnMaxLifetime(maxLifetime)
-	db.SetMaxOpenConns(maxOpen)
-	db.SetMaxIdleConns(maxIdle)
-
-	// Test the connection
-	if err := db.PingContext(ctx); err != nil {
-		_ = db.Close()
-		resp.Diagnostics.AddError(
-			"Unable to Connect to MySQL",
-			"An unexpected error occurred when connecting to MySQL. "+
-				"Please verify the connection configuration.\n\n"+
-				"MySQL Connection Error: "+err.Error(),
-		)
-		return
-	}
-
-	// Verify audit_log_filter component is available
-	var componentExists int
-	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM mysql.component WHERE component_urn = 'file://component_audit_log_filter'").Scan(&componentExists)
-	if err != nil || componentExists == 0 {
-		_ = db.Close()
-		resp.Diagnostics.AddError(
-			"Audit Log Filter Component Not Available",
-			"The audit_log_filter component is not installed or enabled on this MySQL server. "+
-				"Please install and enable the component before using this provider.\n\n"+
-				"Error: "+fmt.Sprintf("Component check error: %v, exists: %d", err, componentExists),
-		)
+	db, ok := connectAndVerify(ctx, validatedConfig, &resp.Diagnostics)
+	if !ok {
 		return
 	}
 
 	p.db = db
 	resp.DataSourceData = db
 	resp.ResourceData = db
+}
+
+func loadRawConfig(data AuditLogFilterProviderModel) providerRawConfig {
+	return providerRawConfig{
+		endpoint:                 configStringOrEnv(data.Endpoint, os.Getenv("MYSQL_ENDPOINT")),
+		username:                 configStringOrEnv(data.Username, os.Getenv("MYSQL_USERNAME")),
+		password:                 configStringOrEnv(data.Password, os.Getenv("MYSQL_PASSWORD")),
+		database:                 configStringOrEnv(data.Database, os.Getenv("MYSQL_DATABASE")),
+		tlsConfig:                configStringOrEnv(data.TLS, os.Getenv("MYSQL_TLS")),
+		tlsCAFile:                configStringOrEnv(data.TLSCAFile, os.Getenv("MYSQL_TLS_CA")),
+		tlsCertFile:              configStringOrEnv(data.TLSCertFile, os.Getenv("MYSQL_TLS_CERT")),
+		tlsKeyFile:               configStringOrEnv(data.TLSKeyFile, os.Getenv("MYSQL_TLS_KEY")),
+		tlsServerName:            configStringOrEnv(data.TLSServerName, os.Getenv("MYSQL_TLS_SERVER_NAME")),
+		tlsSkipVerifyEnv:         os.Getenv("MYSQL_TLS_SKIP_VERIFY"),
+		connMaxLifetimeEnv:       os.Getenv("MYSQL_CONN_MAX_LIFETIME"),
+		maxOpenConnsEnv:          os.Getenv("MYSQL_MAX_OPEN_CONNS"),
+		maxIdleConnsEnv:          os.Getenv("MYSQL_MAX_IDLE_CONNS"),
+		waitTimeoutEnv:           os.Getenv("MYSQL_WAIT_TIMEOUT"),
+		innodbLockWaitTimeoutEnv: os.Getenv("MYSQL_INNODB_LOCK_WAIT_TIMEOUT"),
+		lockWaitTimeoutEnv:       os.Getenv("MYSQL_LOCK_WAIT_TIMEOUT"),
+		tlsSkipVerify:            data.TLSSkipVerify,
+		waitTimeout:              data.WaitTimeout,
+		innodbLockWaitTimeout:    data.InnodbLockWaitTimeout,
+		lockWaitTimeout:          data.LockWaitTimeout,
+	}
+}
+
+func parseAndValidateProviderConfig(raw providerRawConfig, diagnostics *diag.Diagnostics) (providerValidatedConfig, bool) {
+	endpoint := raw.endpoint
+	username := raw.username
+	password := raw.password
+	database := raw.database
+	tlsConfig := raw.tlsConfig
+
+	if endpoint == "" {
+		endpoint = "localhost:3306"
+	}
+	if username == "" {
+		username = "root"
+	}
+	if database == "" {
+		database = "mysql"
+	}
+	if tlsConfig == "" {
+		tlsConfig = "preferred"
+	}
+
+	tlsSkipVerify := false
+	tlsSkipVerifySet := false
+	if raw.tlsSkipVerifyEnv != "" {
+		parsed, err := strconv.ParseBool(raw.tlsSkipVerifyEnv)
+		if err != nil {
+			diagnostics.AddError(
+				"Invalid TLS Skip Verify",
+				"MYSQL_TLS_SKIP_VERIFY must be a boolean: "+err.Error(),
+			)
+			return providerValidatedConfig{}, false
+		}
+		tlsSkipVerify = parsed
+		tlsSkipVerifySet = true
+	}
+	if !raw.tlsSkipVerify.IsNull() {
+		tlsSkipVerify = raw.tlsSkipVerify.ValueBool()
+		tlsSkipVerifySet = true
+	}
+
+	customTLSRequested := raw.tlsCAFile != "" || raw.tlsCertFile != "" || raw.tlsKeyFile != "" || raw.tlsServerName != "" || tlsSkipVerifySet
+	if customTLSRequested {
+		if strings.EqualFold(tlsConfig, "false") {
+			diagnostics.AddError(
+				"TLS Configuration Conflict",
+				"TLS is disabled via tls=\"false\" or MYSQL_TLS=false, but custom TLS settings were provided.",
+			)
+			return providerValidatedConfig{}, false
+		}
+		registeredName, err := registerTLSConfig(raw.tlsCAFile, raw.tlsCertFile, raw.tlsKeyFile, raw.tlsServerName, tlsSkipVerify)
+		if err != nil {
+			diagnostics.AddError(
+				"Invalid TLS Configuration",
+				"Failed to configure TLS settings: "+err.Error(),
+			)
+			return providerValidatedConfig{}, false
+		}
+		tlsConfig = registeredName
+	}
+
+	maxLifetime := 5 * time.Minute
+	if raw.connMaxLifetimeEnv != "" {
+		parsed, err := parseDuration(raw.connMaxLifetimeEnv)
+		if err != nil {
+			diagnostics.AddError(
+				"Invalid MySQL Connection Lifetime",
+				"MYSQL_CONN_MAX_LIFETIME must be a valid duration (e.g. 5m, 30s, 1h): "+err.Error(),
+			)
+			return providerValidatedConfig{}, false
+		}
+		maxLifetime = parsed
+	}
+
+	maxOpen := 5
+	if raw.maxOpenConnsEnv != "" {
+		parsed, err := parseNonNegativeInt(raw.maxOpenConnsEnv)
+		if err != nil {
+			diagnostics.AddError(
+				"Invalid MySQL Max Open Conns",
+				"MYSQL_MAX_OPEN_CONNS must be a non-negative integer: "+err.Error(),
+			)
+			return providerValidatedConfig{}, false
+		}
+		maxOpen = parsed
+	}
+
+	maxIdle := 5
+	if raw.maxIdleConnsEnv != "" {
+		parsed, err := parseNonNegativeInt(raw.maxIdleConnsEnv)
+		if err != nil {
+			diagnostics.AddError(
+				"Invalid MySQL Max Idle Conns",
+				"MYSQL_MAX_IDLE_CONNS must be a non-negative integer: "+err.Error(),
+			)
+			return providerValidatedConfig{}, false
+		}
+		maxIdle = parsed
+	}
+
+	waitTimeout := int64(10000)
+	if raw.waitTimeoutEnv != "" {
+		parsed, err := parsePositiveInt64(raw.waitTimeoutEnv)
+		if err != nil {
+			if errors.Is(err, errNonPositiveInt64) {
+				diagnostics.AddError(
+					"Invalid MySQL Wait Timeout",
+					"MYSQL_WAIT_TIMEOUT must be a positive integer (seconds).",
+				)
+				return providerValidatedConfig{}, false
+			}
+			diagnostics.AddError(
+				"Invalid MySQL Wait Timeout",
+				"MYSQL_WAIT_TIMEOUT must be a positive integer (seconds): "+err.Error(),
+			)
+			return providerValidatedConfig{}, false
+		}
+		waitTimeout = parsed
+	}
+	if !raw.waitTimeout.IsNull() {
+		parsed := raw.waitTimeout.ValueInt64()
+		if err := validatePositiveInt64(parsed); err != nil {
+			diagnostics.AddError(
+				"Invalid MySQL Wait Timeout",
+				"wait_timeout must be a positive integer (seconds).",
+			)
+			return providerValidatedConfig{}, false
+		}
+		waitTimeout = parsed
+	}
+
+	innodbLockWaitTimeout := int64(1)
+	if raw.innodbLockWaitTimeoutEnv != "" {
+		parsed, err := parsePositiveInt64(raw.innodbLockWaitTimeoutEnv)
+		if err != nil {
+			if errors.Is(err, errNonPositiveInt64) {
+				diagnostics.AddError(
+					"Invalid InnoDB Lock Wait Timeout",
+					"MYSQL_INNODB_LOCK_WAIT_TIMEOUT must be a positive integer (seconds).",
+				)
+				return providerValidatedConfig{}, false
+			}
+			diagnostics.AddError(
+				"Invalid InnoDB Lock Wait Timeout",
+				"MYSQL_INNODB_LOCK_WAIT_TIMEOUT must be a positive integer (seconds): "+err.Error(),
+			)
+			return providerValidatedConfig{}, false
+		}
+		innodbLockWaitTimeout = parsed
+	}
+	if !raw.innodbLockWaitTimeout.IsNull() {
+		parsed := raw.innodbLockWaitTimeout.ValueInt64()
+		if err := validatePositiveInt64(parsed); err != nil {
+			diagnostics.AddError(
+				"Invalid InnoDB Lock Wait Timeout",
+				"innodb_lock_wait_timeout must be a positive integer (seconds).",
+			)
+			return providerValidatedConfig{}, false
+		}
+		innodbLockWaitTimeout = parsed
+	}
+
+	lockWaitTimeout := int64(60)
+	if raw.lockWaitTimeoutEnv != "" {
+		parsed, err := parsePositiveInt64(raw.lockWaitTimeoutEnv)
+		if err != nil {
+			if errors.Is(err, errNonPositiveInt64) {
+				diagnostics.AddError(
+					"Invalid Lock Wait Timeout",
+					"MYSQL_LOCK_WAIT_TIMEOUT must be a positive integer (seconds).",
+				)
+				return providerValidatedConfig{}, false
+			}
+			diagnostics.AddError(
+				"Invalid Lock Wait Timeout",
+				"MYSQL_LOCK_WAIT_TIMEOUT must be a positive integer (seconds): "+err.Error(),
+			)
+			return providerValidatedConfig{}, false
+		}
+		lockWaitTimeout = parsed
+	}
+	if !raw.lockWaitTimeout.IsNull() {
+		parsed := raw.lockWaitTimeout.ValueInt64()
+		if err := validatePositiveInt64(parsed); err != nil {
+			diagnostics.AddError(
+				"Invalid Lock Wait Timeout",
+				"lock_wait_timeout must be a positive integer (seconds).",
+			)
+			return providerValidatedConfig{}, false
+		}
+		lockWaitTimeout = parsed
+	}
+
+	return providerValidatedConfig{
+		mysqlConfig: mysql.Config{
+			User:                 username,
+			Passwd:               password,
+			Net:                  "tcp",
+			Addr:                 endpoint,
+			DBName:               database,
+			AllowNativePasswords: true,
+			ParseTime:            true,
+			TLSConfig:            tlsConfig,
+			InterpolateParams:    true,
+			Params: map[string]string{
+				"wait_timeout":             strconv.FormatInt(waitTimeout, 10),
+				"innodb_lock_wait_timeout": strconv.FormatInt(innodbLockWaitTimeout, 10),
+				"lock_wait_timeout":        strconv.FormatInt(lockWaitTimeout, 10),
+			},
+		},
+		maxLifetime:  maxLifetime,
+		maxOpenConns: maxOpen,
+		maxIdleConns: maxIdle,
+	}, true
+}
+
+func connectAndVerify(ctx context.Context, validated providerValidatedConfig, diagnostics *diag.Diagnostics) (*sql.DB, bool) {
+	db, err := sql.Open("mysql", validated.mysqlConfig.FormatDSN())
+	if err != nil {
+		diagnostics.AddError(
+			"Unable to Create MySQL Client",
+			"An unexpected error occurred when creating the MySQL client. "+
+				"If the error is not clear, please contact the provider developers.\n\n"+
+				"MySQL Client Error: "+err.Error(),
+		)
+		return nil, false
+	}
+
+	db.SetConnMaxLifetime(validated.maxLifetime)
+	db.SetMaxOpenConns(validated.maxOpenConns)
+	db.SetMaxIdleConns(validated.maxIdleConns)
+
+	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
+		diagnostics.AddError(
+			"Unable to Connect to MySQL",
+			"An unexpected error occurred when connecting to MySQL. "+
+				"Please verify the connection configuration.\n\n"+
+				"MySQL Connection Error: "+err.Error(),
+		)
+		return nil, false
+	}
+
+	var componentExists int
+	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM mysql.component WHERE component_urn = 'file://component_audit_log_filter'").Scan(&componentExists)
+	if err != nil || componentExists == 0 {
+		_ = db.Close()
+		diagnostics.AddError(
+			"Audit Log Filter Component Not Available",
+			"The audit_log_filter component is not installed or enabled on this MySQL server. "+
+				"Please install and enable the component before using this provider.\n\n"+
+				"Error: "+fmt.Sprintf("Component check error: %v, exists: %d", err, componentExists),
+		)
+		return nil, false
+	}
+
+	return db, true
 }
 
 func (p *AuditLogFilterProvider) Resources(ctx context.Context) []func() resource.Resource {
