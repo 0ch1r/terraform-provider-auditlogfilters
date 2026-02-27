@@ -24,6 +24,20 @@ var _ provider.Provider = &AuditLogFilterProvider{}
 
 var errNonPositiveInt64 = errors.New("value must be a positive integer (seconds)")
 
+const auditLogFilterComponentQuery = "SELECT COUNT(*) FROM mysql.component WHERE component_urn = 'file://component_audit_log_filter'"
+
+var (
+	sqlOpenFunc = sql.Open
+	pingDBFunc  = func(ctx context.Context, db *sql.DB) error {
+		return db.PingContext(ctx)
+	}
+	queryComponentCountFunc = func(ctx context.Context, db *sql.DB) (int, error) {
+		var componentExists int
+		err := db.QueryRowContext(ctx, auditLogFilterComponentQuery).Scan(&componentExists)
+		return componentExists, err
+	}
+)
+
 // AuditLogFilterProvider defines the provider implementation.
 type AuditLogFilterProvider struct {
 	// version is set to the provider version on release, "dev" when the
@@ -276,136 +290,64 @@ func parseAndValidateProviderConfig(raw providerRawConfig, diagnostics *diag.Dia
 		tlsConfig = registeredName
 	}
 
-	maxLifetime := 5 * time.Minute
-	if raw.connMaxLifetimeEnv != "" {
-		parsed, err := parseDuration(raw.connMaxLifetimeEnv)
-		if err != nil {
-			diagnostics.AddError(
-				"Invalid MySQL Connection Lifetime",
-				"MYSQL_CONN_MAX_LIFETIME must be a valid duration (e.g. 5m, 30s, 1h): "+err.Error(),
-			)
-			return providerValidatedConfig{}, false
-		}
-		maxLifetime = parsed
+	maxLifetime, ok := parseDurationEnvOrDefault(raw.connMaxLifetimeEnv, 5*time.Minute, diagnostics,
+		"Invalid MySQL Connection Lifetime",
+		"MYSQL_CONN_MAX_LIFETIME must be a valid duration (e.g. 5m, 30s, 1h)")
+	if !ok {
+		return providerValidatedConfig{}, false
 	}
 
-	maxOpen := 5
-	if raw.maxOpenConnsEnv != "" {
-		parsed, err := parseNonNegativeInt(raw.maxOpenConnsEnv)
-		if err != nil {
-			diagnostics.AddError(
-				"Invalid MySQL Max Open Conns",
-				"MYSQL_MAX_OPEN_CONNS must be a non-negative integer: "+err.Error(),
-			)
-			return providerValidatedConfig{}, false
-		}
-		maxOpen = parsed
+	maxOpen, ok := parseNonNegativeIntEnvOrDefault(raw.maxOpenConnsEnv, 5, diagnostics,
+		"Invalid MySQL Max Open Conns",
+		"MYSQL_MAX_OPEN_CONNS must be a non-negative integer")
+	if !ok {
+		return providerValidatedConfig{}, false
 	}
 
-	maxIdle := 5
-	if raw.maxIdleConnsEnv != "" {
-		parsed, err := parseNonNegativeInt(raw.maxIdleConnsEnv)
-		if err != nil {
-			diagnostics.AddError(
-				"Invalid MySQL Max Idle Conns",
-				"MYSQL_MAX_IDLE_CONNS must be a non-negative integer: "+err.Error(),
-			)
-			return providerValidatedConfig{}, false
-		}
-		maxIdle = parsed
+	maxIdle, ok := parseNonNegativeIntEnvOrDefault(raw.maxIdleConnsEnv, 5, diagnostics,
+		"Invalid MySQL Max Idle Conns",
+		"MYSQL_MAX_IDLE_CONNS must be a non-negative integer")
+	if !ok {
+		return providerValidatedConfig{}, false
 	}
 
-	waitTimeout := int64(10000)
-	if raw.waitTimeoutEnv != "" {
-		parsed, err := parsePositiveInt64(raw.waitTimeoutEnv)
-		if err != nil {
-			if errors.Is(err, errNonPositiveInt64) {
-				diagnostics.AddError(
-					"Invalid MySQL Wait Timeout",
-					"MYSQL_WAIT_TIMEOUT must be a positive integer (seconds).",
-				)
-				return providerValidatedConfig{}, false
-			}
-			diagnostics.AddError(
-				"Invalid MySQL Wait Timeout",
-				"MYSQL_WAIT_TIMEOUT must be a positive integer (seconds): "+err.Error(),
-			)
-			return providerValidatedConfig{}, false
-		}
-		waitTimeout = parsed
-	}
-	if !raw.waitTimeout.IsNull() {
-		parsed := raw.waitTimeout.ValueInt64()
-		if err := validatePositiveInt64(parsed); err != nil {
-			diagnostics.AddError(
-				"Invalid MySQL Wait Timeout",
-				"wait_timeout must be a positive integer (seconds).",
-			)
-			return providerValidatedConfig{}, false
-		}
-		waitTimeout = parsed
+	waitTimeout, ok := parseTimeoutConfig(timeoutValidationInput{
+		envValue:      raw.waitTimeoutEnv,
+		attr:          raw.waitTimeout,
+		defaultValue:  10000,
+		summary:       "Invalid MySQL Wait Timeout",
+		envFieldName:  "MYSQL_WAIT_TIMEOUT",
+		attrFieldName: "wait_timeout",
+		diagnostics:   diagnostics,
+	})
+	if !ok {
+		return providerValidatedConfig{}, false
 	}
 
-	innodbLockWaitTimeout := int64(1)
-	if raw.innodbLockWaitTimeoutEnv != "" {
-		parsed, err := parsePositiveInt64(raw.innodbLockWaitTimeoutEnv)
-		if err != nil {
-			if errors.Is(err, errNonPositiveInt64) {
-				diagnostics.AddError(
-					"Invalid InnoDB Lock Wait Timeout",
-					"MYSQL_INNODB_LOCK_WAIT_TIMEOUT must be a positive integer (seconds).",
-				)
-				return providerValidatedConfig{}, false
-			}
-			diagnostics.AddError(
-				"Invalid InnoDB Lock Wait Timeout",
-				"MYSQL_INNODB_LOCK_WAIT_TIMEOUT must be a positive integer (seconds): "+err.Error(),
-			)
-			return providerValidatedConfig{}, false
-		}
-		innodbLockWaitTimeout = parsed
-	}
-	if !raw.innodbLockWaitTimeout.IsNull() {
-		parsed := raw.innodbLockWaitTimeout.ValueInt64()
-		if err := validatePositiveInt64(parsed); err != nil {
-			diagnostics.AddError(
-				"Invalid InnoDB Lock Wait Timeout",
-				"innodb_lock_wait_timeout must be a positive integer (seconds).",
-			)
-			return providerValidatedConfig{}, false
-		}
-		innodbLockWaitTimeout = parsed
+	innodbLockWaitTimeout, ok := parseTimeoutConfig(timeoutValidationInput{
+		envValue:      raw.innodbLockWaitTimeoutEnv,
+		attr:          raw.innodbLockWaitTimeout,
+		defaultValue:  1,
+		summary:       "Invalid InnoDB Lock Wait Timeout",
+		envFieldName:  "MYSQL_INNODB_LOCK_WAIT_TIMEOUT",
+		attrFieldName: "innodb_lock_wait_timeout",
+		diagnostics:   diagnostics,
+	})
+	if !ok {
+		return providerValidatedConfig{}, false
 	}
 
-	lockWaitTimeout := int64(60)
-	if raw.lockWaitTimeoutEnv != "" {
-		parsed, err := parsePositiveInt64(raw.lockWaitTimeoutEnv)
-		if err != nil {
-			if errors.Is(err, errNonPositiveInt64) {
-				diagnostics.AddError(
-					"Invalid Lock Wait Timeout",
-					"MYSQL_LOCK_WAIT_TIMEOUT must be a positive integer (seconds).",
-				)
-				return providerValidatedConfig{}, false
-			}
-			diagnostics.AddError(
-				"Invalid Lock Wait Timeout",
-				"MYSQL_LOCK_WAIT_TIMEOUT must be a positive integer (seconds): "+err.Error(),
-			)
-			return providerValidatedConfig{}, false
-		}
-		lockWaitTimeout = parsed
-	}
-	if !raw.lockWaitTimeout.IsNull() {
-		parsed := raw.lockWaitTimeout.ValueInt64()
-		if err := validatePositiveInt64(parsed); err != nil {
-			diagnostics.AddError(
-				"Invalid Lock Wait Timeout",
-				"lock_wait_timeout must be a positive integer (seconds).",
-			)
-			return providerValidatedConfig{}, false
-		}
-		lockWaitTimeout = parsed
+	lockWaitTimeout, ok := parseTimeoutConfig(timeoutValidationInput{
+		envValue:      raw.lockWaitTimeoutEnv,
+		attr:          raw.lockWaitTimeout,
+		defaultValue:  60,
+		summary:       "Invalid Lock Wait Timeout",
+		envFieldName:  "MYSQL_LOCK_WAIT_TIMEOUT",
+		attrFieldName: "lock_wait_timeout",
+		diagnostics:   diagnostics,
+	})
+	if !ok {
+		return providerValidatedConfig{}, false
 	}
 
 	return providerValidatedConfig{
@@ -432,13 +374,14 @@ func parseAndValidateProviderConfig(raw providerRawConfig, diagnostics *diag.Dia
 }
 
 func connectAndVerify(ctx context.Context, validated providerValidatedConfig, diagnostics *diag.Diagnostics) (*sql.DB, bool) {
-	db, err := sql.Open("mysql", validated.mysqlConfig.FormatDSN())
+	db, err := sqlOpenFunc("mysql", validated.mysqlConfig.FormatDSN())
 	if err != nil {
-		diagnostics.AddError(
+		addDiagnosticWithError(
+			diagnostics,
 			"Unable to Create MySQL Client",
-			"An unexpected error occurred when creating the MySQL client. "+
-				"If the error is not clear, please contact the provider developers.\n\n"+
-				"MySQL Client Error: "+err.Error(),
+			"An unexpected error occurred when creating the MySQL client. If the error is not clear, please contact the provider developers.",
+			"MySQL Client Error",
+			err,
 		)
 		return nil, false
 	}
@@ -447,19 +390,19 @@ func connectAndVerify(ctx context.Context, validated providerValidatedConfig, di
 	db.SetMaxOpenConns(validated.maxOpenConns)
 	db.SetMaxIdleConns(validated.maxIdleConns)
 
-	if err := db.PingContext(ctx); err != nil {
+	if err := pingDBFunc(ctx, db); err != nil {
 		_ = db.Close()
-		diagnostics.AddError(
+		addDiagnosticWithError(
+			diagnostics,
 			"Unable to Connect to MySQL",
-			"An unexpected error occurred when connecting to MySQL. "+
-				"Please verify the connection configuration.\n\n"+
-				"MySQL Connection Error: "+err.Error(),
+			"An unexpected error occurred when connecting to MySQL. Please verify the connection configuration.",
+			"MySQL Connection Error",
+			err,
 		)
 		return nil, false
 	}
 
-	var componentExists int
-	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM mysql.component WHERE component_urn = 'file://component_audit_log_filter'").Scan(&componentExists)
+	componentExists, err := queryComponentCountFunc(ctx, db)
 	if err != nil || componentExists == 0 {
 		_ = db.Close()
 		diagnostics.AddError(
@@ -533,4 +476,79 @@ func configStringOrEnv(attr types.String, envValue string) string {
 		return attr.ValueString()
 	}
 	return envValue
+}
+
+type timeoutValidationInput struct {
+	envValue      string
+	attr          types.Int64
+	defaultValue  int64
+	summary       string
+	envFieldName  string
+	attrFieldName string
+	diagnostics   *diag.Diagnostics
+}
+
+func parseTimeoutConfig(input timeoutValidationInput) (int64, bool) {
+	resolved := input.defaultValue
+	if input.envValue != "" {
+		parsed, err := parsePositiveInt64(input.envValue)
+		if err != nil {
+			if errors.Is(err, errNonPositiveInt64) {
+				input.diagnostics.AddError(
+					input.summary,
+					fmt.Sprintf("%s must be a positive integer (seconds).", input.envFieldName),
+				)
+				return 0, false
+			}
+			addDiagnosticWithError(
+				input.diagnostics,
+				input.summary,
+				fmt.Sprintf("%s must be a positive integer (seconds).", input.envFieldName),
+				"Parse error",
+				err,
+			)
+			return 0, false
+		}
+		resolved = parsed
+	}
+	if !input.attr.IsNull() {
+		parsed := input.attr.ValueInt64()
+		if err := validatePositiveInt64(parsed); err != nil {
+			input.diagnostics.AddError(
+				input.summary,
+				fmt.Sprintf("%s must be a positive integer (seconds).", input.attrFieldName),
+			)
+			return 0, false
+		}
+		resolved = parsed
+	}
+	return resolved, true
+}
+
+func parseDurationEnvOrDefault(envValue string, defaultValue time.Duration, diagnostics *diag.Diagnostics, summary, requirement string) (time.Duration, bool) {
+	if envValue == "" {
+		return defaultValue, true
+	}
+	parsed, err := parseDuration(envValue)
+	if err != nil {
+		addDiagnosticWithError(diagnostics, summary, requirement, "Parse error", err)
+		return 0, false
+	}
+	return parsed, true
+}
+
+func parseNonNegativeIntEnvOrDefault(envValue string, defaultValue int, diagnostics *diag.Diagnostics, summary, requirement string) (int, bool) {
+	if envValue == "" {
+		return defaultValue, true
+	}
+	parsed, err := parseNonNegativeInt(envValue)
+	if err != nil {
+		addDiagnosticWithError(diagnostics, summary, requirement, "Parse error", err)
+		return 0, false
+	}
+	return parsed, true
+}
+
+func addDiagnosticWithError(diagnostics *diag.Diagnostics, summary, detail, errorLabel string, err error) {
+	diagnostics.AddError(summary, detail+": "+errorLabel+": "+err.Error())
 }

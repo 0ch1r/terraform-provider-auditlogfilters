@@ -109,3 +109,44 @@ func TestParseAndValidateProviderConfigInvalidWaitTimeout(t *testing.T) {
 		t.Fatalf("unexpected diagnostic summary: %q", diagnostics[0].Summary())
 	}
 }
+
+func TestParseAndValidateProviderConfigTLSConflict(t *testing.T) {
+	t.Parallel()
+
+	raw := providerRawConfig{
+		tlsConfig: "false",
+		tlsCAFile: "/tmp/ca.pem",
+	}
+	var diagnostics diag.Diagnostics
+
+	_, ok := parseAndValidateProviderConfig(raw, &diagnostics)
+	if ok {
+		t.Fatalf("expected parse to fail for TLS conflict")
+	}
+	if !diagnostics.HasError() {
+		t.Fatalf("expected diagnostic error for TLS conflict")
+	}
+	if diagnostics[0].Summary() != "TLS Configuration Conflict" {
+		t.Fatalf("unexpected diagnostic summary: %q", diagnostics[0].Summary())
+	}
+}
+
+func TestParseAndValidateProviderConfigInvalidTLSSkipVerifyEnv(t *testing.T) {
+	t.Parallel()
+
+	raw := providerRawConfig{
+		tlsSkipVerifyEnv: "not-a-bool",
+	}
+	var diagnostics diag.Diagnostics
+
+	_, ok := parseAndValidateProviderConfig(raw, &diagnostics)
+	if ok {
+		t.Fatalf("expected parse to fail for invalid tls skip verify env")
+	}
+	if !diagnostics.HasError() {
+		t.Fatalf("expected diagnostic error for invalid tls skip verify env")
+	}
+	if diagnostics[0].Summary() != "Invalid TLS Skip Verify" {
+		t.Fatalf("unexpected diagnostic summary: %q", diagnostics[0].Summary())
+	}
+}

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (2026-02-27)
+
+- **Configure Diagnostics Consolidation**: Refactored provider configuration parsing to use shared helpers for timeout and pool/lifetime env validation, reducing repeated diagnostic construction while preserving validation behavior.
+- **Connection Verification Testability**: Updated `connectAndVerify` to use internal function hooks for DB open, ping, and component checks, enabling deterministic unit testing of connection/verification branches.
+
+### Added (2026-02-27)
+
+- **Configure Connection Path Tests**: Added unit tests for `connectAndVerify` open failure, ping failure, missing component, and success paths.
+- **TLS/Parsing Edge Case Tests**: Added parsing tests for TLS disable-vs-custom conflict and invalid `MYSQL_TLS_SKIP_VERIFY` input.
+
 ### Changed (2026-02-26)
 
 - **Configure Flow Decomposition**: Split provider `Configure` into focused internal phases for raw config loading, parsing/validation, and DB connect/component verification while preserving existing behavior and diagnostics.
